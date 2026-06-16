@@ -1,0 +1,269 @@
+package github
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+
+	gh "github.com/google/go-github/v72/github"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
+)
+
+// Client abstracts GitHub API operations used by stern.
+type Client interface {
+	// Label management
+	ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error)
+	CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error
+	UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error
+	DeleteLabel(ctx context.Context, owner, repo, name string) error
+	AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error
+	RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error
+
+	// Pull requests
+	GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error)
+	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error)
+
+	// Reactions and comments
+	CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error
+	CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error
+
+	// Permissions
+	IsOrgMember(ctx context.Context, org, user string) (bool, error)
+	HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error)
+
+	// Auto-merge
+	EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error
+	DisableAutoMerge(ctx context.Context, owner, repo string, number int) error
+
+	// File content (for OWNERS parsing)
+	GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error)
+}
+
+type realClient struct {
+	ghc *gh.Client
+}
+
+// NewFromEnv creates a Client authenticated via GITHUB_TOKEN.
+func NewFromEnv() (Client, error) {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("GITHUB_TOKEN is not set")
+	}
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	tc := oauth2.NewClient(context.Background(), ts)
+	return &realClient{ghc: gh.NewClient(tc)}, nil
+}
+
+func (c *realClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error) {
+	var all []*gh.Label
+	opts := &gh.ListOptions{PerPage: 100}
+	for {
+		labels, resp, err := c.ghc.Issues.ListLabels(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, labels...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return all, nil
+}
+
+func (c *realClient) CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error {
+	_, _, err := c.ghc.Issues.CreateLabel(ctx, owner, repo, label)
+	return err
+}
+
+func (c *realClient) UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error {
+	_, _, err := c.ghc.Issues.EditLabel(ctx, owner, repo, name, label)
+	return err
+}
+
+func (c *realClient) DeleteLabel(ctx context.Context, owner, repo, name string) error {
+	_, err := c.ghc.Issues.DeleteLabel(ctx, owner, repo, name)
+	return err
+}
+
+func (c *realClient) AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error {
+	_, _, err := c.ghc.Issues.AddLabelsToIssue(ctx, owner, repo, number, labels)
+	return err
+}
+
+func (c *realClient) RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error {
+	_, err := c.ghc.Issues.RemoveLabelForIssue(ctx, owner, repo, number, label)
+	return err
+}
+
+func (c *realClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error) {
+	pr, _, err := c.ghc.PullRequests.Get(ctx, owner, repo, number)
+	return pr, err
+}
+
+func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error) {
+	var all []*gh.CommitFile
+	opts := &gh.ListOptions{PerPage: 100}
+	for {
+		files, resp, err := c.ghc.PullRequests.ListFiles(ctx, owner, repo, number, opts)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, files...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return all, nil
+}
+
+func (c *realClient) CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error {
+	_, _, err := c.ghc.Reactions.CreateCommentReaction(ctx, owner, repo, commentID, content)
+	return err
+}
+
+func (c *realClient) CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error {
+	comment := &gh.IssueComment{Body: gh.Ptr(body)}
+	_, _, err := c.ghc.Issues.CreateComment(ctx, owner, repo, number, comment)
+	return err
+}
+
+func (c *realClient) IsOrgMember(ctx context.Context, org, user string) (bool, error) {
+	isMember, _, err := c.ghc.Organizations.IsMember(ctx, org, user)
+	return isMember, err
+}
+
+func (c *realClient) HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error) {
+	perm, _, err := c.ghc.Repositories.GetPermissionLevel(ctx, owner, repo, user)
+	if err != nil {
+		return false, err
+	}
+	switch perm.GetPermission() {
+	case "write", "maintain", "admin":
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+func (c *realClient) EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error {
+	body := map[string]string{"merge_method": method}
+	url := fmt.Sprintf("repos/%s/%s/pulls/%d/auto_merge", owner, repo, number)
+	req, err := c.ghc.NewRequest("PUT", url, body)
+	if err != nil {
+		return err
+	}
+	_, err = c.ghc.Do(ctx, req, nil)
+	if err != nil && isUnprocessable(err) {
+		return nil // already enabled
+	}
+	return err
+}
+
+func (c *realClient) DisableAutoMerge(ctx context.Context, owner, repo string, number int) error {
+	url := fmt.Sprintf("repos/%s/%s/pulls/%d/auto_merge", owner, repo, number)
+	req, err := c.ghc.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+	_, err = c.ghc.Do(ctx, req, nil)
+	if err != nil && isUnprocessable(err) {
+		return nil // not enabled
+	}
+	return err
+}
+
+func isUnprocessable(err error) bool {
+	var ghErr *gh.ErrorResponse
+	return errors.As(err, &ghErr) && ghErr.Response != nil &&
+		ghErr.Response.StatusCode == http.StatusUnprocessableEntity
+}
+
+func (c *realClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
+	opts := &gh.RepositoryContentGetOptions{Ref: ref}
+	fc, _, _, err := c.ghc.Repositories.GetContents(ctx, owner, repo, path, opts)
+	if err != nil {
+		return nil, err
+	}
+	if fc == nil {
+		return nil, fmt.Errorf("path %q not found", path)
+	}
+	content, err := fc.GetContent()
+	if err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", path, err)
+	}
+	return []byte(content), nil
+}
+
+// dryRunClient wraps a Client and logs mutating calls without executing them.
+type dryRunClient struct {
+	inner  Client
+	logger *logrus.Logger
+}
+
+// NewDryRun wraps a Client so all mutating calls are logged instead of executed.
+func NewDryRun(inner Client, logger *logrus.Logger) Client {
+	return &dryRunClient{inner: inner, logger: logger}
+}
+
+// Read-through: these methods pass to inner unchanged.
+func (c *dryRunClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error) {
+	return c.inner.ListRepoLabels(ctx, owner, repo)
+}
+func (c *dryRunClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error) {
+	return c.inner.GetPullRequest(ctx, owner, repo, number)
+}
+func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error) {
+	return c.inner.ListPullRequestFiles(ctx, owner, repo, number)
+}
+func (c *dryRunClient) IsOrgMember(ctx context.Context, org, user string) (bool, error) {
+	return c.inner.IsOrgMember(ctx, org, user)
+}
+func (c *dryRunClient) HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error) {
+	return c.inner.HasWriteAccess(ctx, owner, repo, user)
+}
+func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
+	return c.inner.GetFileContent(ctx, owner, repo, path, ref)
+}
+
+// Mutating methods: log and no-op.
+func (c *dryRunClient) CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": label.GetName()}).Info("[dry-run] CreateLabel")
+	return nil
+}
+func (c *dryRunClient) UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": name}).Info("[dry-run] UpdateLabel")
+	return nil
+}
+func (c *dryRunClient) DeleteLabel(ctx context.Context, owner, repo, name string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": name}).Info("[dry-run] DeleteLabel")
+	return nil
+}
+func (c *dryRunClient) AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "labels": labels}).Info("[dry-run] AddLabels")
+	return nil
+}
+func (c *dryRunClient) RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "label": label}).Info("[dry-run] RemoveLabel")
+	return nil
+}
+func (c *dryRunClient) CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "commentID": commentID, "content": content}).Info("[dry-run] CreateCommentReaction")
+	return nil
+}
+func (c *dryRunClient) CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] CreateIssueComment")
+	return nil
+}
+func (c *dryRunClient) EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "method": method}).Info("[dry-run] EnableAutoMerge")
+	return nil
+}
+func (c *dryRunClient) DisableAutoMerge(ctx context.Context, owner, repo string, number int) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] DisableAutoMerge")
+	return nil
+}

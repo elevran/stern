@@ -1,0 +1,135 @@
+name: stern
+
+on:
+  issue_comment:
+    types: [created]
+
+  pull_request_target:
+    types: [opened, synchronize, edited, closed, reopened]
+
+  issues:
+    types: [opened]
+
+  # Uncomment when merge-check is ready (Task 1.5):
+  # check_suite:
+  #   types: [completed]
+
+  # Uncomment when lifecycle sweep is ready (Task 1.4 / lifecycle plugin):
+  # schedule:
+  #   - cron: '0 6 * * *'
+
+jobs:
+  slash-command:
+    name: slash-command
+    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    concurrency:
+      group: stern-comment-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run slash-command
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/stern/ slash-command --config .github/stern.yaml
+
+  pr-event:
+    name: pr-event
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run pr-event
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/stern/ pr-event --config .github/stern.yaml
+
+  issue-event:
+    name: issue-event
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run issue-event
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/stern/ issue-event --config .github/stern.yaml
+
+  # Uncomment when merge-check is ready (Task 1.5):
+  # merge-check:
+  #   name: merge-check
+  #   if: github.event_name == 'check_suite'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     pull-requests: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: main
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache: true
+  #     - name: Run merge-check
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: go run ./cmd/stern/ merge-check --config .github/stern.yaml
+
+  # Uncomment when lifecycle plugin is ready:
+  # lifecycle-sweep:
+  #   name: lifecycle-sweep
+  #   if: github.event_name == 'schedule'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     issues: write
+  #     pull-requests: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: main
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache: true
+  #     - name: Run lifecycle
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: go run ./cmd/stern/ lifecycle --config .github/stern.yaml
