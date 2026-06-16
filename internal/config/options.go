@@ -99,12 +99,6 @@ func (o *Options) applyDefaults() {
 	}
 }
 
-// Validate checks the options for errors. Returns nil if valid.
-// Full validation is implemented in Task 0.5.
-func (o *Options) Validate() []error {
-	return nil
-}
-
 // HasPlugin reports whether the named plugin is enabled.
 func (o *Options) HasPlugin(name string) bool {
 	for _, p := range o.Plugins {

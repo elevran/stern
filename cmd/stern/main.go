@@ -204,47 +204,186 @@ func newConfigCmd() *cobra.Command {
 }
 
 func newConfigInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		output string
+		org    string
+		repo   string
+		force  bool
+	)
+	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Generate a commented stern.yaml template (Task 0.4)",
+		Short: "Generate a commented stern.yaml template",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Info("config init: not yet implemented (Task 0.4)")
+			org, repo = config.OrgRepoFromGitHubRepository(org, repo)
+			if org == "" {
+				org = "YOUR_ORG"
+			}
+			if repo == "" {
+				repo = "YOUR_REPO"
+			}
+
+			data, err := config.Generate(org, repo)
+			if err != nil {
+				return err
+			}
+
+			if output == "-" {
+				_, err = os.Stdout.Write(data)
+				return err
+			}
+
+			if !force {
+				if _, err := os.Stat(output); err == nil {
+					return fmt.Errorf("%s already exists; use --force to overwrite", output)
+				}
+			}
+
+			if err := os.MkdirAll(dirOf(output), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(output, data, 0o644); err != nil {
+				return err
+			}
+
+			fmt.Printf("Wrote %s\n\n", output)
+			fmt.Println("Next steps:")
+			fmt.Printf("  1. Review and edit %s\n", output)
+			fmt.Printf("  2. stern config check --config %s\n", output)
+			fmt.Printf("  3. stern config sync-labels --dry-run --config %s\n", output)
+			fmt.Printf("  4. stern config sync-labels --config %s\n", output)
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&output, "output", ".github/stern.yaml", "output file path (- for stdout)")
+	cmd.Flags().StringVar(&org, "org", "", "GitHub organization")
+	cmd.Flags().StringVar(&repo, "repo", "", "GitHub repository")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing file")
+	return cmd
 }
 
 func newConfigCheckCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "check",
-		Short: "Validate stern.yaml and report all issues (Task 0.5)",
+	c := &cobra.Command{
+		Use:          "check",
+		Short:        "Validate stern.yaml and report all issues",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			errs := opts.Validate()
-			if len(errs) == 0 {
-				fmt.Println("No issues found")
+			issues := opts.Validate()
+			if len(issues) == 0 {
+				fmt.Printf("%s — No issues found\n", configPath)
 				return nil
 			}
-			for _, e := range errs {
-				fmt.Fprintf(os.Stderr, "ERROR  %v\n", e)
+			fmt.Printf("%s — %d issue(s) found\n\n", configPath, len(issues))
+			hasError := false
+			for _, e := range issues {
+				s := e.Error()
+				fmt.Printf("  %s\n", s)
+				if isErrorLevel(s) {
+					hasError = true
+				}
 			}
-			return fmt.Errorf("%d issue(s) found", len(errs))
-		},
-	}
-}
-
-func newConfigSyncLabelsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "sync-labels",
-		Short: "Reconcile repo labels with label_definitions in stern.yaml (Task 0.6)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Info("config sync-labels: not yet implemented (Task 0.6)")
+			fmt.Println()
+			if hasError {
+				return fmt.Errorf("exit code 1")
+			}
 			return nil
 		},
 	}
+	return c
+}
+
+func isErrorLevel(s string) bool {
+	return len(s) >= 5 && s[:5] == "ERROR"
+}
+
+func newConfigSyncLabelsCmd() *cobra.Command {
+	var (
+		syncDryRun bool
+		prune      bool
+		yes        bool
+	)
+	cmd := &cobra.Command{
+		Use:          "sync-labels",
+		Short:        "Reconcile repo labels with label_definitions in stern.yaml",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			opts, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			if opts.Org == "" || opts.Repo == "" {
+				return fmt.Errorf("org and repo must be set in stern.yaml or --config")
+			}
+
+			ghc, err := buildClient()
+			if err != nil {
+				return err
+			}
+
+			ctx := context.Background()
+			current, err := ghc.ListRepoLabels(ctx, opts.Org, opts.Repo)
+			if err != nil {
+				return fmt.Errorf("listing repo labels: %w", err)
+			}
+
+			diffs := config.DiffLabels(opts.LabelDefinitions, current)
+
+			counts := map[string]int{}
+			for _, d := range diffs {
+				switch d.Action {
+				case config.LabelCreate:
+					counts["create"]++
+				case config.LabelUpdate:
+					counts["update"]++
+				case config.LabelOK:
+					counts["ok"]++
+				case config.LabelExtra:
+					counts["extra"]++
+				}
+			}
+			fmt.Printf("Label plan for %s/%s:\n", opts.Org, opts.Repo)
+			config.PrintLabelPlan(os.Stdout, diffs)
+			fmt.Printf("\nSummary: %d create, %d update, %d ok, %d extra\n",
+				counts["create"], counts["update"], counts["ok"], counts["extra"])
+
+			if syncDryRun {
+				fmt.Println("\n[dry-run] No changes applied.")
+				return nil
+			}
+
+			if counts["extra"] > 0 && prune && !yes {
+				fmt.Printf("\nDelete %d extra label(s)? [y/N] ", counts["extra"])
+				var resp string
+				fmt.Scanln(&resp)
+				if resp != "y" && resp != "Y" {
+					fmt.Println("Aborted.")
+					return nil
+				}
+			}
+
+			if err := config.ApplyLabelDiffs(ctx, ghc, opts.Org, opts.Repo, diffs, prune); err != nil {
+				return err
+			}
+			fmt.Println("\nDone.")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "print plan without making changes")
+	cmd.Flags().BoolVar(&prune, "prune", false, "delete labels not in label_definitions")
+	cmd.Flags().BoolVar(&yes, "yes", false, "skip interactive confirmation when pruning")
+	return cmd
+}
+
+func dirOf(path string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			return path[:i]
+		}
+	}
+	return "."
 }
 
 // --- helpers ---
