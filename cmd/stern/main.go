@@ -13,6 +13,7 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/pr"
 )
 
 var (
@@ -125,7 +126,7 @@ func newPREventCmd() *cobra.Command {
 }
 
 func runPREvent(cmd *cobra.Command, _ []string) error {
-	_, err := loadConfig()
+	opts, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -133,8 +134,18 @@ func runPREvent(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("parsing event: %w", err)
 	}
-	log.WithField("action", evt.GetAction()).Info("pr-event: no handlers registered yet")
-	return nil
+
+	ghc, err := buildClient()
+	if err != nil {
+		return fmt.Errorf("building GitHub client: %w", err)
+	}
+
+	org, repo, err := event.OrgRepoFromEnv()
+	if err != nil {
+		return err
+	}
+
+	return pr.HandlePREvent(context.Background(), ghc, org, repo, evt, opts)
 }
 
 // --- issue-event ---

@@ -88,10 +88,14 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 	}
 }
 
-// DefaultRegistry returns a Registry with built-in handlers pre-registered.
+// DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
-		"ping": &pingHandler{},
+		"ping":    &pingHandler{},
+		"lgtm":    &LGTMHandler{},
+		"approve": &ApproveHandler{},
+		"hold":    &HoldHandler{},
+		"wip":     &WIPHandler{},
 	}
 }
 
