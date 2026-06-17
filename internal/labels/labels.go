@@ -15,10 +15,10 @@ const (
 	LifecycleFrozen = "lifecycle/frozen"
 
 	SizePrefix = "size/"
-	SizeXS     = "size/XS"
-	SizeS      = "size/S"
-	SizeM      = "size/M"
-	SizeL      = "size/L"
-	SizeXL     = "size/XL"
-	SizeXXL    = "size/XXL"
+	SizeXS     = SizePrefix + "XS"
+	SizeS      = SizePrefix + "S"
+	SizeM      = SizePrefix + "M"
+	SizeL      = SizePrefix + "L"
+	SizeXL     = SizePrefix + "XL"
+	SizeXXL    = SizePrefix + "XXL"
 )
