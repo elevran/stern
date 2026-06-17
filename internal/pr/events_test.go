@@ -50,7 +50,7 @@ func TestHandlePREventWIP_AddsOnWIPTitle(t *testing.T) {
 		Labels: []*gh.Label{},
 	}
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts(), false); err != nil {
+	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
 		t.Fatalf("HandlePREventWIP() error = %v", err)
 	}
 	if !ghc.IssueLabels[1]["do-not-merge/wip"] {
@@ -69,7 +69,7 @@ func TestHandlePREventWIP_RemovesWhenTitleClean(t *testing.T) {
 	}
 	ghc.PullRequests[1] = p
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts(), true); err != nil {
+	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
 		t.Fatalf("HandlePREventWIP() error = %v", err)
 	}
 	if ghc.IssueLabels[1]["do-not-merge/wip"] {
@@ -86,7 +86,7 @@ func TestHandlePREventWIP_DraftAddsLabel(t *testing.T) {
 		Labels: []*gh.Label{},
 	}
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts(), false); err != nil {
+	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
 		t.Fatalf("HandlePREventWIP() error = %v", err)
 	}
 	if !ghc.IssueLabels[1]["do-not-merge/wip"] {

@@ -10,24 +10,18 @@ import (
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"
-	"github.com/elevran/stern/internal/permissions"
 )
 
 // ApproveHandler handles /approve and /approve cancel.
 type ApproveHandler struct {
 	nopPost
-	ghc     ghclient.Client
-	opts    *config.Options
-	checker permissions.Checker
+	ghc  ghclient.Client
+	opts *config.Options
 }
 
 // NewApproveHandler constructs an ApproveHandler with all dependencies injected.
-func NewApproveHandler(sc *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
-	return &ApproveHandler{
-		ghc:     ghc,
-		opts:    opts,
-		checker: permissions.New(ghc, sc),
-	}
+func NewApproveHandler(_ *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
+	return &ApproveHandler{ghc: ghc, opts: opts}
 }
 
 func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -37,7 +31,7 @@ func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []stri
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
 		return nil
 	}
-	if !h.opts.Approve.AllowSelfApproval && h.checker.IsPRAuthor(sc.PR, sc.Author) {
+	if !h.opts.Approve.AllowSelfApproval && sc.PR.User.GetLogin() == sc.Author {
 		return PermissionError("you cannot approve your own pull request")
 	}
 	return h.checkApproveOwners(ctx, sc)
@@ -45,7 +39,7 @@ func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []stri
 
 func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !isLabelNotFound(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
 		return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)

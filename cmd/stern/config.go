@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -103,7 +104,7 @@ func newConfigCheckCmd() *cobra.Command {
 			for _, e := range issues {
 				s := e.Error()
 				fmt.Printf("  %s\n", s)
-				if len(s) >= 5 && s[:5] == "ERROR" {
+				if strings.HasPrefix(s, "ERROR") {
 					hasError = true
 				}
 			}

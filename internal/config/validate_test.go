@@ -25,8 +25,8 @@ func TestValidate_UnknownPlugin(t *testing.T) {
 	if !strings.Contains(msg, "ERROR") {
 		t.Errorf("expected ERROR level, got: %s", msg)
 	}
-	if !strings.Contains(msg, "did you mean") {
-		t.Errorf("expected 'did you mean' suggestion, got: %s", msg)
+	if !strings.Contains(msg, "unknown plugin") {
+		t.Errorf("expected 'unknown plugin' in message, got: %s", msg)
 	}
 }
 

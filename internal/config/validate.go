@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"regexp"
-	"strings"
+	"slices"
 )
 
 // known plugin names for validation and "did you mean?" suggestions.
@@ -31,14 +31,10 @@ func (o *Options) Validate() []error {
 	// Unknown plugin names.
 	for i, p := range o.Plugins {
 		if !isKnownPlugin(p) {
-			msg := fmt.Sprintf("unknown plugin %q", p)
-			if suggestion := closestPlugin(p); suggestion != "" {
-				msg += fmt.Sprintf(" (did you mean %q?)", suggestion)
-			}
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
 				Field:   fmt.Sprintf("plugins[%d]", i),
-				Message: msg,
+				Message: fmt.Sprintf("unknown plugin %q", p),
 			})
 		}
 	}
@@ -55,64 +51,7 @@ func (o *Options) Validate() []error {
 }
 
 func isKnownPlugin(name string) bool {
-	for _, k := range knownPlugins {
-		if k == name {
-			return true
-		}
-	}
-	return false
-}
-
-// closestPlugin returns the known plugin name within edit distance 2 of name,
-// or "" if none is close enough.
-func closestPlugin(name string) string {
-	best := ""
-	bestDist := 3 // threshold
-	for _, k := range knownPlugins {
-		if d := editDistance(name, k); d < bestDist {
-			bestDist = d
-			best = k
-		}
-	}
-	return best
-}
-
-// editDistance computes the Levenshtein distance between a and b.
-func editDistance(a, b string) int {
-	a = strings.ToLower(a)
-	b = strings.ToLower(b)
-	m, n := len(a), len(b)
-	dp := make([][]int, m+1)
-	for i := range dp {
-		dp[i] = make([]int, n+1)
-		dp[i][0] = i
-	}
-	for j := 0; j <= n; j++ {
-		dp[0][j] = j
-	}
-	for i := 1; i <= m; i++ {
-		for j := 1; j <= n; j++ {
-			if a[i-1] == b[j-1] {
-				dp[i][j] = dp[i-1][j-1]
-			} else {
-				dp[i][j] = 1 + min3(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
-			}
-		}
-	}
-	return dp[m][n]
-}
-
-func min3(a, b, c int) int {
-	if a < b {
-		if a < c {
-			return a
-		}
-		return c
-	}
-	if b < c {
-		return b
-	}
-	return c
+	return slices.Contains(knownPlugins, name)
 }
 
 // cherry_pick validation lives here as it needs cross-plugin awareness.

@@ -9,24 +9,18 @@ import (
 	ghclient "github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
-	"github.com/elevran/stern/internal/permissions"
 )
 
 // HoldHandler handles /hold and /hold cancel.
 type HoldHandler struct {
 	nopPost
-	ghc     ghclient.Client
-	opts    *config.Options
-	checker permissions.Checker
+	ghc  ghclient.Client
+	opts *config.Options
 }
 
 // NewHoldHandler constructs a HoldHandler with all dependencies injected.
-func NewHoldHandler(sc *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
-	return &HoldHandler{
-		ghc:     ghc,
-		opts:    opts,
-		checker: permissions.New(ghc, sc),
-	}
+func NewHoldHandler(_ *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
+	return &HoldHandler{ghc: ghc, opts: opts}
 }
 
 func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -34,7 +28,7 @@ func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 		return PermissionError("/hold may only be used on pull requests")
 	}
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
-		ok, err := h.checker.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
+		ok, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
 		if err != nil {
 			return err
 		}
@@ -47,7 +41,7 @@ func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 
 func (h *HoldHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Hold); err != nil && !isLabelNotFound(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Hold); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
 		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)

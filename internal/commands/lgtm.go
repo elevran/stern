@@ -12,24 +12,18 @@ import (
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"
-	"github.com/elevran/stern/internal/permissions"
 )
 
 // LGTMHandler handles /lgtm and /lgtm cancel.
 type LGTMHandler struct {
 	nopPost
-	ghc     ghclient.Client
-	opts    *config.Options
-	checker permissions.Checker
+	ghc  ghclient.Client
+	opts *config.Options
 }
 
 // NewLGTMHandler constructs a LGTMHandler with all dependencies injected.
-func NewLGTMHandler(sc *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
-	return &LGTMHandler{
-		ghc:     ghc,
-		opts:    opts,
-		checker: permissions.New(ghc, sc),
-	}
+func NewLGTMHandler(_ *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
+	return &LGTMHandler{ghc: ghc, opts: opts}
 }
 
 func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -39,7 +33,7 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
 		return nil
 	}
-	if !h.opts.LGTM.AllowSelfLGTM && h.checker.IsPRAuthor(sc.PR, sc.Author) {
+	if !h.opts.LGTM.AllowSelfLGTM && sc.PR.User.GetLogin() == sc.Author {
 		return PermissionError("you cannot LGTM your own pull request")
 	}
 	return h.checkLGTMOwners(ctx, sc)
@@ -47,7 +41,7 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 
 func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !isLabelNotFound(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
 		return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)
@@ -93,7 +87,3 @@ func fileNames(files []*gh.CommitFile) []string {
 	return names
 }
 
-// isLabelNotFound returns true when the GitHub API returns 404 on label removal.
-func isLabelNotFound(err error) bool {
-	return merge.IsNotFoundError(err)
-}

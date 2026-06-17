@@ -2,6 +2,7 @@ package pr
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	gh "github.com/google/go-github/v72/github"
@@ -32,13 +33,13 @@ func HandlePREvent(ctx context.Context, ghc ghclient.Client, org, repo string, e
 
 	switch action {
 	case "opened", "reopened", "synchronize":
-		if err := HandlePREventWIP(ctx, ghc, org, repo, pr, opts, false); err != nil {
+		if err := HandlePREventWIP(ctx, ghc, org, repo, pr, opts); err != nil {
 			log.WithError(err).Warn("WIP detection failed")
 		}
 	case "edited":
 		titleChanged := evt.Changes != nil && evt.Changes.Title != nil
 		if titleChanged {
-			if err := HandlePREventWIP(ctx, ghc, org, repo, pr, opts, true); err != nil {
+			if err := HandlePREventWIP(ctx, ghc, org, repo, pr, opts); err != nil {
 				log.WithError(err).Warn("WIP detection on title edit failed")
 			}
 		}
@@ -71,9 +72,9 @@ func IsTitleWIP(title string) bool {
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
 // titleChanged should be true only when the title actually changed (on "edited" events).
-func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options, _ bool) error {
+func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
 	shouldHaveWIP := IsTitleWIP(pr.GetTitle()) || pr.GetDraft()
-	currentWIP := prHasLabel(pr, labels.WIP)
+	currentWIP := slices.ContainsFunc(pr.Labels, func(l *gh.Label) bool { return strings.EqualFold(l.GetName(), labels.WIP) })
 	number := pr.GetNumber()
 
 	if shouldHaveWIP && !currentWIP {
@@ -84,7 +85,7 @@ func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string
 	}
 
 	if !shouldHaveWIP && currentWIP {
-		if err := ghc.RemoveLabel(ctx, org, repo, number, labels.WIP); err != nil && !isLabelNotFound(err) {
+		if err := ghc.RemoveLabel(ctx, org, repo, number, labels.WIP); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
 		freshPR, err := ghc.GetPullRequest(ctx, org, repo, number)
@@ -103,7 +104,7 @@ func InvalidateLGTMOnPush(ctx context.Context, ghc ghclient.Client, org, repo st
 		return nil
 	}
 	number := pr.GetNumber()
-	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.LGTM); err != nil && !isLabelNotFound(err) {
+	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.LGTM); err != nil && !merge.IsNotFoundError(err) {
 		return err
 	}
 	return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
@@ -115,21 +116,9 @@ func InvalidateApproveOnPush(ctx context.Context, ghc ghclient.Client, org, repo
 		return nil
 	}
 	number := pr.GetNumber()
-	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.Approved); err != nil && !isLabelNotFound(err) {
+	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.Approved); err != nil && !merge.IsNotFoundError(err) {
 		return err
 	}
 	return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
 }
 
-func prHasLabel(pr *gh.PullRequest, labelName string) bool {
-	for _, l := range pr.Labels {
-		if strings.EqualFold(l.GetName(), labelName) {
-			return true
-		}
-	}
-	return false
-}
-
-func isLabelNotFound(err error) bool {
-	return merge.IsNotFoundError(err)
-}

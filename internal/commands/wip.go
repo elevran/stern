@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	gh "github.com/google/go-github/v72/github"
@@ -33,9 +34,9 @@ func (h *WIPHandler) Pre(_ context.Context, sc *event.Context, _ []string) error
 }
 
 func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
-	hasWIP := prHasLabel(sc.PR, labels.WIP)
+	hasWIP := slices.ContainsFunc(sc.PR.Labels, func(l *gh.Label) bool { return strings.EqualFold(l.GetName(), labels.WIP) })
 	if hasWIP {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.WIP); err != nil && !isLabelNotFound(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.WIP); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
 		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
@@ -51,11 +52,3 @@ func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) 
 	return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)
 }
 
-func prHasLabel(pr *gh.PullRequest, labelName string) bool {
-	for _, l := range pr.Labels {
-		if strings.EqualFold(l.GetName(), labelName) {
-			return true
-		}
-	}
-	return false
-}
