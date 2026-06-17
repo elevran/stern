@@ -113,9 +113,9 @@ func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc 
 	} else {
 		log.WithField("command", "/"+verb).WithError(err).Error("internal error")
 		_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "confused")
-		msg := fmt.Sprintf("Internal error handling `/%s`: %v", verb, err)
-		if sc.ActionsRunURL != "" {
-			msg += fmt.Sprintf("\n\nSee [Actions run](%s) for details.", sc.ActionsRunURL)
+		msg := fmt.Sprintf("Internal error handling `/%s`. See the [Actions run](%s) for details.", verb, sc.ActionsRunURL)
+		if sc.ActionsRunURL == "" {
+			msg = fmt.Sprintf("Internal error handling `/%s`.", verb)
 		}
 		_ = ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, msg)
 	}

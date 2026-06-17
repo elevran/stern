@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/elevran/stern/internal/config"
@@ -49,23 +50,10 @@ func TestGenerate_ContainsAllPlugins(t *testing.T) {
 	s := string(data)
 	plugins := []string{"lgtm", "approve", "hold", "wip", "cherry-pick", "review_assignment", "size", "lifecycle"}
 	for _, p := range plugins {
-		if !containsSubstring(s, p) {
+		if !strings.Contains(s, p) {
 			t.Errorf("generated config does not mention plugin %q", p)
 		}
 	}
-}
-
-func containsSubstring(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsAt(s, sub))
-}
-
-func containsAt(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 func TestOrgRepoFromGitHubRepository(t *testing.T) {
