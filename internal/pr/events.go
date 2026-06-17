@@ -71,7 +71,6 @@ func IsTitleWIP(title string) bool {
 }
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
-// titleChanged should be true only when the title actually changed (on "edited" events).
 func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
 	shouldHaveWIP := IsTitleWIP(pr.GetTitle()) || pr.GetDraft()
 	currentWIP := slices.ContainsFunc(pr.Labels, func(l *gh.Label) bool { return strings.EqualFold(l.GetName(), labels.WIP) })
