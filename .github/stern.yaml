@@ -19,11 +19,11 @@ merge:
     - "needs-rebase"
 
 lgtm:
-  allow_self_lgtm: false
+  allow_self_lgtm: true
   invalidate_on_push: true
 
 approve:
-  allow_self_approval: false
+  allow_self_approval: true
   invalidate_on_push: false
   require_owner: true
 
