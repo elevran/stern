@@ -11,35 +11,28 @@ import (
 	ghclient "github.com/elevran/stern/internal/github"
 )
 
-// LabelAction classifies what needs to happen to a label.
-type LabelAction int
-
-const (
-	LabelOK     LabelAction = iota // exists with correct color and description
-	LabelCreate                    // in config, not in repo
-	LabelUpdate                    // in repo, but color or description differs
-	LabelExtra                     // in repo, not in config
-)
-
-// LabelDiff describes a single label reconciliation action.
-type LabelDiff struct {
-	Name    string
-	Action  LabelAction
-	Current *gh.Label       // nil for Create
-	Desired *LabelDefinition // nil for Extra
+type labelUpdateItem struct {
+	desired LabelDefinition
+	current *gh.Label
 }
 
-// DiffLabels computes the reconciliation plan between label_definitions and
-// current repo labels.
-func DiffLabels(desired []LabelDefinition, current []*gh.Label) []LabelDiff {
-	// Index current labels by lowercased name.
+// LabelPlan groups label changes by kind after a DiffLabels call.
+type LabelPlan struct {
+	Creates   []LabelDefinition // present in config, absent in repo
+	Updates   []labelUpdateItem // present in both, but color or description differs
+	Unchanged []string          // present in both, identical
+	Extras    []*gh.Label       // present in repo, absent in config
+}
+
+// DiffLabels computes the reconciliation plan between desired and current repo labels.
+func DiffLabels(desired []LabelDefinition, current []*gh.Label) LabelPlan {
 	index := make(map[string]*gh.Label, len(current))
 	for _, l := range current {
 		index[strings.ToLower(l.GetName())] = l
 	}
 
+	var plan LabelPlan
 	seen := make(map[string]bool)
-	var diffs []LabelDiff
 
 	for i := range desired {
 		d := &desired[i]
@@ -48,68 +41,67 @@ func DiffLabels(desired []LabelDefinition, current []*gh.Label) []LabelDiff {
 
 		cur, exists := index[key]
 		if !exists {
-			diffs = append(diffs, LabelDiff{Name: d.Name, Action: LabelCreate, Desired: d})
+			plan.Creates = append(plan.Creates, *d)
 			continue
 		}
 		if !strings.EqualFold(cur.GetColor(), d.Color) || cur.GetDescription() != d.Description {
-			diffs = append(diffs, LabelDiff{Name: d.Name, Action: LabelUpdate, Current: cur, Desired: d})
+			plan.Updates = append(plan.Updates, labelUpdateItem{desired: *d, current: cur})
 		} else {
-			diffs = append(diffs, LabelDiff{Name: d.Name, Action: LabelOK, Current: cur, Desired: d})
+			plan.Unchanged = append(plan.Unchanged, d.Name)
 		}
 	}
 
 	for _, l := range current {
 		if !seen[strings.ToLower(l.GetName())] {
-			diffs = append(diffs, LabelDiff{Name: l.GetName(), Action: LabelExtra, Current: l})
+			plan.Extras = append(plan.Extras, l)
 		}
 	}
-	return diffs
+	return plan
 }
 
-// PrintLabelPlan writes a human-readable diff table to w.
-func PrintLabelPlan(w io.Writer, diffs []LabelDiff) {
-	for _, d := range diffs {
-		switch d.Action {
-		case LabelCreate:
-			fmt.Fprintf(w, "  CREATE  %s  #%s  %q\n", d.Name, d.Desired.Color, d.Desired.Description)
-		case LabelUpdate:
-			fmt.Fprintf(w, "  UPDATE  %s\n", d.Name)
-		case LabelOK:
-			fmt.Fprintf(w, "  OK      %s\n", d.Name)
-		case LabelExtra:
-			fmt.Fprintf(w, "  EXTRA   %s\n", d.Name)
-		}
+// Print writes a human-readable plan to w.
+func (p *LabelPlan) Print(w io.Writer) {
+	for _, d := range p.Creates {
+		fmt.Fprintf(w, "  CREATE  %s  #%s  %q\n", d.Name, d.Color, d.Description)
+	}
+	for _, u := range p.Updates {
+		fmt.Fprintf(w, "  UPDATE  %s\n", u.desired.Name)
+	}
+	for _, name := range p.Unchanged {
+		fmt.Fprintf(w, "  OK      %s\n", name)
+	}
+	for _, l := range p.Extras {
+		fmt.Fprintf(w, "  EXTRA   %s\n", l.GetName())
 	}
 }
 
-// ApplyLabelDiffs applies the CREATE and UPDATE diffs to the repo.
-// EXTRA labels are only deleted when prune is true.
-func ApplyLabelDiffs(ctx context.Context, ghc ghclient.Client, owner, repo string, diffs []LabelDiff, prune bool) error {
-	for _, d := range diffs {
-		switch d.Action {
-		case LabelCreate:
-			label := &gh.Label{
-				Name:        gh.Ptr(d.Desired.Name),
-				Color:       gh.Ptr(d.Desired.Color),
-				Description: gh.Ptr(d.Desired.Description),
-			}
-			if err := ghc.CreateLabel(ctx, owner, repo, label); err != nil {
-				return fmt.Errorf("creating label %q: %w", d.Name, err)
-			}
-		case LabelUpdate:
-			label := &gh.Label{
-				Name:        gh.Ptr(d.Desired.Name),
-				Color:       gh.Ptr(d.Desired.Color),
-				Description: gh.Ptr(d.Desired.Description),
-			}
-			if err := ghc.UpdateLabel(ctx, owner, repo, d.Current.GetName(), label); err != nil {
-				return fmt.Errorf("updating label %q: %w", d.Name, err)
-			}
-		case LabelExtra:
-			if prune {
-				if err := ghc.DeleteLabel(ctx, owner, repo, d.Name); err != nil {
-					return fmt.Errorf("deleting label %q: %w", d.Name, err)
-				}
+// Apply executes CREATE and UPDATE operations.
+// EXTRA labels are deleted only when prune is true.
+func (p *LabelPlan) Apply(ctx context.Context, ghc ghclient.Client, owner, repo string, prune bool) error {
+	for _, d := range p.Creates {
+		label := &gh.Label{
+			Name:        gh.Ptr(d.Name),
+			Color:       gh.Ptr(d.Color),
+			Description: gh.Ptr(d.Description),
+		}
+		if err := ghc.CreateLabel(ctx, owner, repo, label); err != nil {
+			return fmt.Errorf("creating label %q: %w", d.Name, err)
+		}
+	}
+	for _, u := range p.Updates {
+		label := &gh.Label{
+			Name:        gh.Ptr(u.desired.Name),
+			Color:       gh.Ptr(u.desired.Color),
+			Description: gh.Ptr(u.desired.Description),
+		}
+		if err := ghc.UpdateLabel(ctx, owner, repo, u.current.GetName(), label); err != nil {
+			return fmt.Errorf("updating label %q: %w", u.desired.Name, err)
+		}
+	}
+	if prune {
+		for _, l := range p.Extras {
+			if err := ghc.DeleteLabel(ctx, owner, repo, l.GetName()); err != nil {
+				return fmt.Errorf("deleting label %q: %w", l.GetName(), err)
 			}
 		}
 	}

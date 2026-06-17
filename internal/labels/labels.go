@@ -5,7 +5,7 @@ const (
 	Approved = "approved"
 
 	Hold = "do-not-merge/hold"
-	WIP  = "do-not-merge/work-in-progress"
+	WIP  = "do-not-merge/wip"
 
 	NeedsRebase = "needs-rebase"
 	NeedsTriage = "needs-triage"

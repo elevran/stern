@@ -11,7 +11,7 @@ merge:
   method: squash     # squash | merge | rebase
   blocking_labels:
     - "do-not-merge/hold"
-    - "do-not-merge/work-in-progress"
+    - "do-not-merge/wip"
     - "needs-rebase"
 
 lgtm:
@@ -46,7 +46,7 @@ label_definitions:
   - name: do-not-merge/hold
     color: "e11d48"
     description: "Block merging until this label is removed"
-  - name: do-not-merge/work-in-progress
+  - name: do-not-merge/wip
     color: "e11d48"
     description: "PR is not ready for review or merge"
   - name: needs-rebase

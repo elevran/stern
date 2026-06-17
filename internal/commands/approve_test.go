@@ -30,7 +30,7 @@ func TestApprove_AddsLabel(t *testing.T) {
 	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
 	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("main.go")}}
 
-	reg := commands.Registry{"approve": &commands.ApproveHandler{}}
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	if !ghc.IssueLabels[1]["approved"] {
@@ -43,7 +43,7 @@ func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 	sc.Author = "approver"
 	ghc.IssueLabels[1] = map[string]bool{"approved": true}
 
-	reg := commands.Registry{"approve": &commands.ApproveHandler{}}
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts(false))
 
 	if ghc.IssueLabels[1]["approved"] {
@@ -55,7 +55,7 @@ func TestApprove_SelfApprovalDenied(t *testing.T) {
 	sc, ghc := prContext("approver")
 	sc.Author = "approver" // PR author == commenter
 
-	reg := commands.Registry{"approve": &commands.ApproveHandler{}}
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	if ghc.IssueLabels[1]["approved"] {
@@ -72,7 +72,7 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
 	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("main.go")}}
 
-	reg := commands.Registry{"approve": &commands.ApproveHandler{}}
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	if ghc.IssueLabels[1]["approved"] {
@@ -93,7 +93,7 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
 	// No OWNERS files: any commenter can approve.
 
-	reg := commands.Registry{"approve": &commands.ApproveHandler{}}
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	opts := &config.Options{
 		Approve: config.ApproveOptions{RequireOwner: false},
 		Merge:   config.MergeOptions{Method: "squash", BlockingLabels: []string{"do-not-merge/hold"}},

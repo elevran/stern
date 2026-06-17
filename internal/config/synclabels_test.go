@@ -15,9 +15,9 @@ func TestDiffLabels_Create(t *testing.T) {
 	desired := []config.LabelDefinition{
 		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
-	diffs := config.DiffLabels(desired, nil)
-	if len(diffs) != 1 || diffs[0].Action != config.LabelCreate {
-		t.Errorf("expected CREATE, got %v", diffs)
+	plan := config.DiffLabels(desired, nil)
+	if len(plan.Creates) != 1 {
+		t.Errorf("expected 1 create, got %d", len(plan.Creates))
 	}
 }
 
@@ -28,9 +28,9 @@ func TestDiffLabels_OK(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("Looks good to me")},
 	}
-	diffs := config.DiffLabels(desired, current)
-	if len(diffs) != 1 || diffs[0].Action != config.LabelOK {
-		t.Errorf("expected OK, got %v", diffs)
+	plan := config.DiffLabels(desired, current)
+	if len(plan.Unchanged) != 1 {
+		t.Errorf("expected 1 unchanged, got %d", len(plan.Unchanged))
 	}
 }
 
@@ -41,9 +41,9 @@ func TestDiffLabels_Update_Color(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("ffffff"), Description: gh.Ptr("Looks good to me")},
 	}
-	diffs := config.DiffLabels(desired, current)
-	if len(diffs) != 1 || diffs[0].Action != config.LabelUpdate {
-		t.Errorf("expected UPDATE for color change, got %v", diffs)
+	plan := config.DiffLabels(desired, current)
+	if len(plan.Updates) != 1 {
+		t.Errorf("expected 1 update for color change, got %d", len(plan.Updates))
 	}
 }
 
@@ -54,9 +54,9 @@ func TestDiffLabels_Update_Description(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("Old description")},
 	}
-	diffs := config.DiffLabels(desired, current)
-	if len(diffs) != 1 || diffs[0].Action != config.LabelUpdate {
-		t.Errorf("expected UPDATE for description change, got %v", diffs)
+	plan := config.DiffLabels(desired, current)
+	if len(plan.Updates) != 1 {
+		t.Errorf("expected 1 update for description change, got %d", len(plan.Updates))
 	}
 }
 
@@ -64,9 +64,9 @@ func TestDiffLabels_Extra(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("extra-label"), Color: gh.Ptr("000000"), Description: gh.Ptr("Not in config")},
 	}
-	diffs := config.DiffLabels(nil, current)
-	if len(diffs) != 1 || diffs[0].Action != config.LabelExtra {
-		t.Errorf("expected EXTRA, got %v", diffs)
+	plan := config.DiffLabels(nil, current)
+	if len(plan.Extras) != 1 {
+		t.Errorf("expected 1 extra, got %d", len(plan.Extras))
 	}
 }
 
@@ -75,10 +75,9 @@ func TestDiffLabels_NoPrune(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
 	}
-	diffs := config.DiffLabels(nil, current)
-	// Apply without prune: should NOT delete extra labels.
-	if err := config.ApplyLabelDiffs(context.Background(), ghc, "owner", "repo", diffs, false); err != nil {
-		t.Fatalf("ApplyLabelDiffs() error = %v", err)
+	plan := config.DiffLabels(nil, current)
+	if err := plan.Apply(context.Background(), ghc, "owner", "repo", false); err != nil {
+		t.Fatalf("Apply() error = %v", err)
 	}
 	if len(ghc.RepoLabels) != 0 {
 		t.Error("expected no label mutations when not pruning")
@@ -91,39 +90,41 @@ func TestDiffLabels_WithPrune(t *testing.T) {
 	current := []*gh.Label{
 		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
 	}
-	diffs := config.DiffLabels(nil, current)
-	if err := config.ApplyLabelDiffs(context.Background(), ghc, "owner", "repo", diffs, true); err != nil {
-		t.Fatalf("ApplyLabelDiffs() error = %v", err)
+	plan := config.DiffLabels(nil, current)
+	if err := plan.Apply(context.Background(), ghc, "owner", "repo", true); err != nil {
+		t.Fatalf("Apply() error = %v", err)
 	}
 	if _, ok := ghc.RepoLabels["extra"]; ok {
 		t.Error("expected extra label to be deleted when pruning")
 	}
 }
 
-func TestApplyLabelDiffs_Create(t *testing.T) {
+func TestApply_Create(t *testing.T) {
 	ghc := ghclient.NewMockClient()
-	diffs := []config.LabelDiff{
-		{
-			Name:    "lgtm",
-			Action:  config.LabelCreate,
-			Desired: &config.LabelDefinition{Name: "lgtm", Color: "0e8a16", Description: "desc"},
-		},
+	desired := []config.LabelDefinition{
+		{Name: "lgtm", Color: "0e8a16", Description: "desc"},
 	}
-	if err := config.ApplyLabelDiffs(context.Background(), ghc, "o", "r", diffs, false); err != nil {
-		t.Fatalf("ApplyLabelDiffs() error = %v", err)
+	plan := config.DiffLabels(desired, nil)
+	if err := plan.Apply(context.Background(), ghc, "o", "r", false); err != nil {
+		t.Fatalf("Apply() error = %v", err)
 	}
 	if _, ok := ghc.RepoLabels["lgtm"]; !ok {
 		t.Error("expected lgtm label to be created")
 	}
 }
 
-func TestPrintLabelPlan(t *testing.T) {
-	diffs := []config.LabelDiff{
-		{Name: "lgtm", Action: config.LabelCreate, Desired: &config.LabelDefinition{Name: "lgtm", Color: "0e8a16", Description: "desc"}},
-		{Name: "approved", Action: config.LabelOK, Desired: &config.LabelDefinition{Name: "approved"}},
-		{Name: "hold", Action: config.LabelUpdate, Desired: &config.LabelDefinition{Name: "hold"}, Current: &gh.Label{Name: gh.Ptr("hold")}},
-		{Name: "extra", Action: config.LabelExtra, Current: &gh.Label{Name: gh.Ptr("extra")}},
+func TestPrint(t *testing.T) {
+	desired := []config.LabelDefinition{
+		{Name: "lgtm", Color: "0e8a16", Description: "desc"},
+		{Name: "approved", Color: "0e8a16", Description: "approved"},
+		{Name: "hold", Color: "e11d48", Description: "hold"},
 	}
+	current := []*gh.Label{
+		{Name: gh.Ptr("approved"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("approved")},
+		{Name: gh.Ptr("hold"), Color: gh.Ptr("ffffff"), Description: gh.Ptr("hold")},
+		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
+	}
+	plan := config.DiffLabels(desired, current)
 	// Just ensure it doesn't panic and produces output.
-	config.PrintLabelPlan(os.Stdout, diffs)
+	plan.Print(os.Stdout)
 }

@@ -97,7 +97,7 @@ func TestDispatch_PermissionError(t *testing.T) {
 	sc := newSternContext()
 
 	reg := commands.Registry{
-		"deny": denyHandler{},
+		"deny": newDenyHandler,
 	}
 	commands.Dispatch(context.Background(), sc, "/deny", reg, ghc, opts)
 
@@ -115,7 +115,7 @@ func TestDispatch_InternalError(t *testing.T) {
 	sc := newSternContext()
 
 	reg := commands.Registry{
-		"fail": failHandler{},
+		"fail": newFailHandler,
 	}
 	commands.Dispatch(context.Background(), sc, "/fail", reg, ghc, opts)
 
@@ -127,16 +127,32 @@ func TestDispatch_InternalError(t *testing.T) {
 	}
 }
 
-// denyHandler always returns a permission error.
+// denyHandler always returns a permission error from Pre.
 type denyHandler struct{}
 
-func (h denyHandler) Handle(ctx context.Context, sc *event.Context, args []string, ghc ghclient.Client, opts *config.Options) error {
-	return commands.PermissionError("you are not allowed to do that")
+func newDenyHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) commands.Handler {
+	return denyHandler{}
 }
 
-// failHandler always returns an internal error.
+func (denyHandler) Pre(_ context.Context, _ *event.Context, _ []string) error {
+	return commands.PermissionError("you are not allowed to do that")
+}
+func (denyHandler) Handle(_ context.Context, _ *event.Context, _ []string) error { return nil }
+func (denyHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
+}
+
+// failHandler always returns an internal error from Handle.
 type failHandler struct{}
 
-func (h failHandler) Handle(ctx context.Context, sc *event.Context, args []string, ghc ghclient.Client, opts *config.Options) error {
+func newFailHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) commands.Handler {
+	return failHandler{}
+}
+
+func (failHandler) Pre(_ context.Context, _ *event.Context, _ []string) error { return nil }
+func (failHandler) Handle(_ context.Context, _ *event.Context, _ []string) error {
 	return context.DeadlineExceeded
+}
+func (failHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
 }

@@ -1,6 +1,6 @@
 module github.com/elevran/stern
 
-go 1.23.0
+go 1.25.11
 
 require (
 	github.com/google/go-github/v72 v72.0.0

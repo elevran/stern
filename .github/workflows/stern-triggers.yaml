@@ -2,7 +2,7 @@ name: stern
 
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
 
   pull_request_target:
     types: [opened, synchronize, edited, closed, reopened]
@@ -21,7 +21,7 @@ on:
 jobs:
   slash-command:
     name: slash-command
-    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/')
+    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/')
     runs-on: ubuntu-latest
     permissions:
       contents: read

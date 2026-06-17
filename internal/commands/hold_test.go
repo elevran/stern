@@ -19,7 +19,7 @@ func holdOpts() *config.Options {
 
 func TestHold_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"hold": &commands.HoldHandler{}}
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
@@ -32,7 +32,7 @@ func TestHold_AnyOrgMemberCanHold(t *testing.T) {
 	sc.Author = "contributor" // non-write user
 	ghc.WriteAccess["elevran/stern/contributor"] = false
 
-	reg := commands.Registry{"hold": &commands.HoldHandler{}}
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
@@ -46,7 +46,7 @@ func TestHold_Cancel_RequiresWriteAccess(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/reader"] = false
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
 
-	reg := commands.Registry{"hold": &commands.HoldHandler{}}
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
 
 	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
@@ -63,7 +63,7 @@ func TestHold_Cancel_WithWriteAccess(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
 
-	reg := commands.Registry{"hold": &commands.HoldHandler{}}
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
 
 	if ghc.IssueLabels[1]["do-not-merge/hold"] {
@@ -75,7 +75,7 @@ func TestHold_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"hold": &commands.HoldHandler{}}
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {

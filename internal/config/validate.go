@@ -23,8 +23,8 @@ func (v ValidationIssue) Error() string {
 	return fmt.Sprintf("%s  %s: %s", v.Level, v.Field, v.Message)
 }
 
-// Validate checks the options for errors and warnings. Returns all issues;
-// does not stop at the first error.
+// Validate checks all options for errors and warnings.
+// Returns all issues found; does not stop at the first error.
 func (o *Options) Validate() []error {
 	var issues []ValidationIssue
 
@@ -43,70 +43,9 @@ func (o *Options) Validate() []error {
 		}
 	}
 
-	// merge.method
-	switch o.Merge.Method {
-	case "squash", "merge", "rebase", "":
-	default:
-		issues = append(issues, ValidationIssue{
-			Level:   "ERROR",
-			Field:   "merge.method",
-			Message: fmt.Sprintf("invalid value %q (must be squash, merge, or rebase)", o.Merge.Method),
-		})
-	}
-
-	// merge.strategy
-	switch o.Merge.Strategy {
-	case "native", "bot", "":
-	default:
-		issues = append(issues, ValidationIssue{
-			Level:   "ERROR",
-			Field:   "merge.strategy",
-			Message: fmt.Sprintf("invalid value %q (must be native or bot)", o.Merge.Strategy),
-		})
-	}
-
-	// cherry_pick.allowed_branch_pattern must compile if cherry-pick is enabled.
-	if o.HasPlugin("cherry-pick") && o.CherryPick.AllowedBranchPattern == "" {
-		issues = append(issues, ValidationIssue{
-			Level:   "ERROR",
-			Field:   "cherry_pick.allowed_branch_pattern",
-			Message: "cherry-pick plugin is enabled but allowed_branch_pattern is empty",
-		})
-	}
-	if o.CherryPick.AllowedBranchPattern != "" {
-		if _, err := regexp.Compile(o.CherryPick.AllowedBranchPattern); err != nil {
-			issues = append(issues, ValidationIssue{
-				Level:   "ERROR",
-				Field:   "cherry_pick.allowed_branch_pattern",
-				Message: fmt.Sprintf("invalid regex: %v", err),
-			})
-		}
-	}
-
-	// lifecycle thresholds must be positive.
-	if o.Lifecycle.StaleDays < 0 {
-		issues = append(issues, ValidationIssue{
-			Level:   "ERROR",
-			Field:   "lifecycle.stale_days",
-			Message: "must be a positive integer",
-		})
-	}
-	if o.Lifecycle.RottenDays < 0 {
-		issues = append(issues, ValidationIssue{
-			Level:   "ERROR",
-			Field:   "lifecycle.rotten_days",
-			Message: "must be a positive integer",
-		})
-	}
-
-	// Warn when native strategy has no blocking labels.
-	if o.Merge.Strategy == "native" && len(o.Merge.BlockingLabels) == 0 {
-		issues = append(issues, ValidationIssue{
-			Level:   "WARN",
-			Field:   "merge.blocking_labels",
-			Message: "empty — hold labels will not block auto-merge",
-		})
-	}
+	issues = append(issues, o.Merge.validate()...)
+	issues = append(issues, o.CherryPick.validate(o.HasPlugin("cherry-pick"))...)
+	issues = append(issues, o.Lifecycle.validate()...)
 
 	errs := make([]error, len(issues))
 	for i, issue := range issues {
@@ -174,4 +113,26 @@ func min3(a, b, c int) int {
 		return b
 	}
 	return c
+}
+
+// cherry_pick validation lives here as it needs cross-plugin awareness.
+func (o *CherryPickOptions) validate(pluginEnabled bool) []ValidationIssue {
+	var issues []ValidationIssue
+	if pluginEnabled && o.AllowedBranchPattern == "" {
+		issues = append(issues, ValidationIssue{
+			Level:   "ERROR",
+			Field:   "cherry_pick.allowed_branch_pattern",
+			Message: "cherry-pick plugin is enabled but allowed_branch_pattern is empty",
+		})
+	}
+	if o.AllowedBranchPattern != "" {
+		if _, err := regexp.Compile(o.AllowedBranchPattern); err != nil {
+			issues = append(issues, ValidationIssue{
+				Level:   "ERROR",
+				Field:   "cherry_pick.allowed_branch_pattern",
+				Message: fmt.Sprintf("invalid regex: %v", err),
+			})
+		}
+	}
+	return issues
 }

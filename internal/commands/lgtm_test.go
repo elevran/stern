@@ -48,7 +48,7 @@ func lgtmOpts(allowSelf bool) *config.Options {
 
 func TestLGTM_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	if !ghc.IssueLabels[1]["lgtm"] {
@@ -59,7 +59,7 @@ func TestLGTM_AddsLabel(t *testing.T) {
 func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm cancel", reg, ghc, lgtmOpts(false))
 
 	if ghc.IssueLabels[1]["lgtm"] {
@@ -70,7 +70,7 @@ func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 func TestLGTM_SelfLGTMDenied(t *testing.T) {
 	sc, ghc := prContext("reviewer") // PR author == commenter
 	sc.Author = "reviewer"
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	if ghc.IssueLabels[1]["lgtm"] {
@@ -84,7 +84,7 @@ func TestLGTM_SelfLGTMDenied(t *testing.T) {
 func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 	sc, ghc := prContext("reviewer")
 	sc.Author = "reviewer"
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(true))
 
 	if !ghc.IssueLabels[1]["lgtm"] {
@@ -98,7 +98,7 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - alice\n  - bob\n")
 	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("README.md")}}
 
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	if ghc.IssueLabels[1]["lgtm"] {
@@ -115,7 +115,7 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 	// No OWNERS files loaded in mock
 	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("README.md")}}
 
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	if !ghc.IssueLabels[1]["lgtm"] {
@@ -132,7 +132,7 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 		PR:          nil, // not a PR
 	}
 	ghc := ghclient.NewMockClient()
-	reg := commands.Registry{"lgtm": &commands.LGTMHandler{}}
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {

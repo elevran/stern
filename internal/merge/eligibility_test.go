@@ -27,7 +27,7 @@ func opts() *config.Options {
 			Method: "squash",
 			BlockingLabels: []string{
 				"do-not-merge/hold",
-				"do-not-merge/work-in-progress",
+				"do-not-merge/wip",
 				"needs-rebase",
 			},
 		},
@@ -79,7 +79,7 @@ func TestCheckEligibility_Hold(t *testing.T) {
 }
 
 func TestCheckEligibility_WIP(t *testing.T) {
-	result := merge.CheckEligibility(pr("lgtm", "approved", "do-not-merge/work-in-progress"), opts())
+	result := merge.CheckEligibility(pr("lgtm", "approved", "do-not-merge/wip"), opts())
 	if result.Ready {
 		t.Error("expected Ready=false when WIP is present")
 	}
@@ -87,7 +87,7 @@ func TestCheckEligibility_WIP(t *testing.T) {
 
 func TestCheckEligibility_MultipleBlockers(t *testing.T) {
 	result := merge.CheckEligibility(
-		pr("lgtm", "approved", "do-not-merge/hold", "do-not-merge/work-in-progress"),
+		pr("lgtm", "approved", "do-not-merge/hold", "do-not-merge/wip"),
 		opts(),
 	)
 	if result.Ready {

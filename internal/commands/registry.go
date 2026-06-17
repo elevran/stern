@@ -15,14 +15,27 @@ import (
 
 // Handler processes a single slash command.
 type Handler interface {
-	Handle(ctx context.Context, sc *event.Context, args []string, ghc ghclient.Client, opts *config.Options) error
+	// Pre performs authorization and argument validation. A non-nil error
+	// prevents Handle from running and triggers the appropriate reaction.
+	Pre(ctx context.Context, sc *event.Context, args []string) error
+	// Handle performs the command's main mutation logic.
+	Handle(ctx context.Context, sc *event.Context, args []string) error
+	// Post runs after Handle regardless of the result; receives the Handle error.
+	Post(ctx context.Context, sc *event.Context, args []string, handleErr error) error
 }
 
-// Registry maps command verbs to handlers.
-type Registry map[string]Handler
+// HandlerFactory creates a configured Handler for the given call context.
+type HandlerFactory func(sc *event.Context, ghc ghclient.Client, opts *config.Options) Handler
+
+// Registry maps command verbs to handler factories.
+type Registry map[string]HandlerFactory
+
+// nopPost provides a no-op Post implementation for handlers with no post-processing.
+type nopPost struct{}
+
+func (nopPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
 
 // ErrPermission represents a permission-denied or validation error from a handler.
-// The dispatch loop reacts with -1 and posts a comment.
 type ErrPermission struct {
 	message string
 }
@@ -30,14 +43,13 @@ type ErrPermission struct {
 func (e *ErrPermission) Error() string { return e.message }
 
 // PermissionError wraps a permission or validation error for the dispatch loop.
-func PermissionError(format string, args ...interface{}) error {
+func PermissionError(format string, args ...any) error {
 	return &ErrPermission{message: fmt.Sprintf(format, args...)}
 }
 
 // Dispatch parses slash-commands from body and calls the matching handler for each.
-// Success: +1 reaction on the triggering comment.
-// Permission error: -1 reaction + comment.
-// Internal error: confused reaction + comment with Actions run link.
+// Pre errors: -1 reaction for ErrPermission, confused for internal errors.
+// Handle errors: same routing. Post errors are logged but do not affect reactions.
 // Unknown verb: logged only, no reaction.
 func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry, ghc ghclient.Client, opts *config.Options) {
 	log := logrus.WithFields(logrus.Fields{
@@ -47,61 +59,85 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 		"author": sc.Author,
 	})
 
-	for _, line := range strings.Split(body, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "/") {
+	for line := range strings.SplitSeq(body, "\n") {
+		tokens := strings.Fields(line)
+		// find the first slash-command token anywhere in the line
+		cmdIdx := -1
+		for i, t := range tokens {
+			if strings.HasPrefix(t, "/") {
+				cmdIdx = i
+				break
+			}
+		}
+		if cmdIdx == -1 {
 			continue
 		}
-		parts := strings.Fields(strings.TrimPrefix(line, "/"))
-		if len(parts) == 0 {
+		// strip leading "/" and trailing punctuation from the verb
+		verb := strings.TrimLeft(tokens[cmdIdx], "/")
+		verb = strings.TrimRight(verb, ".,!?;:")
+		if verb == "" {
 			continue
 		}
-		verb, args := parts[0], parts[1:]
+		args := tokens[cmdIdx+1:]
 
-		h, ok := reg[verb]
+		factory, ok := reg[verb]
 		if !ok {
 			log.WithField("command", "/"+verb).Info("no handler registered")
 			continue
 		}
 
 		log.WithField("command", "/"+verb).Info("dispatching")
-		err := h.Handle(ctx, sc, args, ghc, opts)
-		if err == nil {
-			_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "+1")
+		h := factory(sc, ghc, opts)
+
+		if preErr := h.Pre(ctx, sc, args); preErr != nil {
+			dispatchErr(ctx, log, sc, ghc, verb, preErr)
 			continue
 		}
 
-		var permErr *ErrPermission
-		if errors.As(err, &permErr) {
-			log.WithField("command", "/"+verb).WithError(err).Info("permission denied")
-			_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "-1")
-			_ = ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, permErr.Error())
-		} else {
-			log.WithField("command", "/"+verb).WithError(err).Error("internal error")
-			_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "confused")
-			msg := fmt.Sprintf("Internal error handling `/%s`: %v", verb, err)
-			if sc.ActionsRunURL != "" {
-				msg += fmt.Sprintf("\n\nSee [Actions run](%s) for details.", sc.ActionsRunURL)
-			}
-			_ = ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, msg)
+		handleErr := h.Handle(ctx, sc, args)
+		_ = h.Post(ctx, sc, args, handleErr)
+		if handleErr == nil {
+			_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "+1")
+			continue
 		}
+		dispatchErr(ctx, log, sc, ghc, verb, handleErr)
+	}
+}
+
+func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc ghclient.Client, verb string, err error) {
+	var permErr *ErrPermission
+	if errors.As(err, &permErr) {
+		log.WithField("command", "/"+verb).WithError(err).Info("permission denied")
+		_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "-1")
+		_ = ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, permErr.Error())
+	} else {
+		log.WithField("command", "/"+verb).WithError(err).Error("internal error")
+		_ = ghc.CreateCommentReaction(ctx, sc.Org, sc.Repo, sc.CommentID, "confused")
+		msg := fmt.Sprintf("Internal error handling `/%s`: %v", verb, err)
+		if sc.ActionsRunURL != "" {
+			msg += fmt.Sprintf("\n\nSee [Actions run](%s) for details.", sc.ActionsRunURL)
+		}
+		_ = ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, msg)
 	}
 }
 
 // DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
-		"ping":    &pingHandler{},
-		"lgtm":    &LGTMHandler{},
-		"approve": &ApproveHandler{},
-		"hold":    &HoldHandler{},
-		"wip":     &WIPHandler{},
+		"ping":    newPingHandler,
+		"lgtm":    NewLGTMHandler,
+		"approve": NewApproveHandler,
+		"hold":    NewHoldHandler,
+		"wip":     NewWIPHandler,
 	}
 }
 
-// pingHandler handles /ping — confirms the bot is alive.
-type pingHandler struct{}
-
-func (h *pingHandler) Handle(ctx context.Context, sc *event.Context, args []string, ghc ghclient.Client, opts *config.Options) error {
-	return nil // success: dispatch loop adds +1 reaction
+func newPingHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) Handler {
+	return &pingHandler{}
 }
+
+// pingHandler handles /ping — confirms the bot is alive.
+type pingHandler struct{ nopPost }
+
+func (h *pingHandler) Pre(_ context.Context, _ *event.Context, _ []string) error   { return nil }
+func (h *pingHandler) Handle(_ context.Context, _ *event.Context, _ []string) error { return nil }
