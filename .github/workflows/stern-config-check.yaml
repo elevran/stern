@@ -1,0 +1,23 @@
+name: stern-config-check
+
+on:
+  pull_request:
+    paths:
+      - '.github/stern.yaml'
+
+jobs:
+  config-check:
+    name: Validate stern.yaml
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check stern.yaml
+        run: go run ./cmd/stern/ config check --config .github/stern.yaml

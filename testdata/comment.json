@@ -1,0 +1,31 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 1,
+    "title": "Test PR",
+    "state": "open",
+    "pull_request": {
+      "url": "https://api.github.com/repos/elevran/stern/pulls/1"
+    },
+    "user": {
+      "login": "testuser"
+    }
+  },
+  "comment": {
+    "id": 12345,
+    "body": "/ping\n/hello world",
+    "user": {
+      "login": "testuser"
+    }
+  },
+  "sender": {
+    "login": "testuser"
+  },
+  "repository": {
+    "full_name": "elevran/stern",
+    "name": "stern",
+    "owner": {
+      "login": "elevran"
+    }
+  }
+}

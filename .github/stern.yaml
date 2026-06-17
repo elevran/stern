@@ -1,0 +1,84 @@
+org: elevran
+repo: stern
+bot_login: github-actions[bot]
+
+# Enable plugins by adding their names to this list.
+# Available: lgtm, approve, hold, wip, cherry-pick, review_assignment, size, lifecycle
+plugins: []
+
+merge:
+  strategy: native   # native | bot
+  method: squash     # squash | merge | rebase
+  blocking_labels:
+    - "do-not-merge/hold"
+    - "do-not-merge/wip"
+    - "needs-rebase"
+
+lgtm:
+  allow_self_lgtm: false
+  invalidate_on_push: true
+
+approve:
+  allow_self_approval: false
+  invalidate_on_push: false
+  require_owner: true
+
+cherry_pick:
+  allowed_branch_pattern: "^release-.*"
+  command: cherry-pick
+
+review_assignment:
+  enabled: false
+  load_balancing: round-robin
+
+lifecycle:
+  stale_days: 90
+  rotten_days: 30
+  close_rotten: false
+
+label_definitions:
+  - name: lgtm
+    color: "0e8a16"
+    description: "Looks good to me"
+  - name: approved
+    color: "0e8a16"
+    description: "Approved by an approver"
+  - name: do-not-merge/hold
+    color: "e11d48"
+    description: "Block merging until this label is removed"
+  - name: do-not-merge/wip
+    color: "e11d48"
+    description: "PR is not ready for review or merge"
+  - name: needs-rebase
+    color: "e4e669"
+    description: "PR branch needs to be rebased on the target branch"
+  - name: needs-triage
+    color: "e4e669"
+    description: "Issue needs triage before a PR will be accepted"
+  - name: size/XS
+    color: "3cbf00"
+    description: "Fewer than 10 lines changed"
+  - name: size/S
+    color: "5d9801"
+    description: "10-29 lines changed"
+  - name: size/M
+    color: "7f7203"
+    description: "30-99 lines changed"
+  - name: size/L
+    color: "a14c05"
+    description: "100-499 lines changed"
+  - name: size/XL
+    color: "c32607"
+    description: "500-999 lines changed"
+  - name: size/XXL
+    color: "e50009"
+    description: "1000 or more lines changed"
+  - name: lifecycle/stale
+    color: "cccccc"
+    description: "Issue has not been active recently"
+  - name: lifecycle/rotten
+    color: "999999"
+    description: "Issue has become rotten due to inactivity"
+  - name: lifecycle/frozen
+    color: "666666"
+    description: "Issue is frozen and will not become stale"
