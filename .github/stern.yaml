@@ -4,7 +4,11 @@ bot_login: github-actions[bot]
 
 # Enable plugins by adding their names to this list.
 # Available: lgtm, approve, hold, wip, cherry-pick, review_assignment, size, lifecycle
-plugins: []
+plugins:
+  - lgtm
+  - approve
+  - hold
+  - wip
 
 merge:
   strategy: native   # native | bot
@@ -82,3 +86,6 @@ label_definitions:
   - name: lifecycle/frozen
     color: "666666"
     description: "Issue is frozen and will not become stale"
+  - name: e2e-fixture
+    color: "bfdadc"
+    description: "Marks issues/PRs that are permanent e2e test fixtures — do not close or merge"
