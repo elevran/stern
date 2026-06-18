@@ -60,7 +60,7 @@ func CheckEligibility(pr *gh.PullRequest, opts *config.Options) EligibilityResul
 // CheckAndApplyAutoMerge calls CheckEligibility and enables/disables auto-merge
 // on the PR accordingly. It is a convenience wrapper used by label-modifying handlers.
 // Auto-merge errors are non-fatal: the primary label operation already succeeded.
-func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.PullRequest, opts *config.Options) error {
+func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient, pr *gh.PullRequest, opts *config.Options) error {
 	result := CheckEligibility(pr, opts)
 	nodeID := pr.GetNodeID()
 	if result.Ready {
@@ -84,7 +84,7 @@ func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.Pul
 // DisableAutoMerge disables GitHub's native auto-merge on a PR. If the feature
 // is unavailable for this repository, the error is logged at debug level and nil
 // is returned — disabling is a no-op when auto-merge was never enabled.
-func DisableAutoMerge(ctx context.Context, ghc ghclient.Client, nodeID string) error {
+func DisableAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient, nodeID string) error {
 	if err := ghc.DisableAutoMerge(ctx, nodeID); err != nil {
 		if isAutoMergeUnavailable(err) {
 			logrus.WithError(err).Debug("auto-merge: disable skipped — feature not available for this repository")

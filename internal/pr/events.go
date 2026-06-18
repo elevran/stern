@@ -14,8 +14,14 @@ import (
 	"github.com/elevran/stern/internal/merge"
 )
 
+// prClient is the minimum Client surface the PR event handlers use.
+type prClient interface {
+	ghclient.LabelsClient
+	ghclient.PullRequestsClient
+}
+
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
-func HandlePREvent(ctx context.Context, ghc ghclient.Client, org, repo string, evt *gh.PullRequestEvent, opts *config.Options) error {
+func HandlePREvent(ctx context.Context, ghc prClient, org, repo string, evt *gh.PullRequestEvent, opts *config.Options) error {
 	action := evt.GetAction()
 	pr := evt.GetPullRequest()
 
@@ -77,7 +83,7 @@ func IsTitleWIP(title string) bool {
 }
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
-func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
+func HandlePREventWIP(ctx context.Context, ghc prClient, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
 	shouldHaveWIP := IsTitleWIP(pr.GetTitle()) || pr.GetDraft()
 	currentWIP := slices.ContainsFunc(pr.Labels, func(l *gh.Label) bool { return strings.EqualFold(l.GetName(), labels.WIP) })
 	number := pr.GetNumber()
@@ -104,7 +110,7 @@ func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string
 }
 
 // InvalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
-func InvalidateLGTMOnPush(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
+func InvalidateLGTMOnPush(ctx context.Context, ghc prClient, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
 	if !opts.LGTM.InvalidateOnPush {
 		return nil
 	}
@@ -116,7 +122,7 @@ func InvalidateLGTMOnPush(ctx context.Context, ghc ghclient.Client, org, repo st
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
-func InvalidateApproveOnPush(ctx context.Context, ghc ghclient.Client, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
+func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string, pr *gh.PullRequest, opts *config.Options) error {
 	if !opts.Approve.InvalidateOnPush {
 		return nil
 	}
