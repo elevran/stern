@@ -158,7 +158,7 @@ func newConfigSyncLabelsCmd() *cobra.Command {
 			if len(plan.Extras) > 0 && prune && !yes {
 				fmt.Printf("\nDelete %d extra label(s)? [y/N] ", len(plan.Extras))
 				var resp string
-				fmt.Scanln(&resp)
+				_, _ = fmt.Scanln(&resp)
 				if resp != "y" && resp != "Y" {
 					fmt.Println("Aborted.")
 					return nil
