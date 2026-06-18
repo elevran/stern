@@ -80,7 +80,7 @@ func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string
 		if err := ghc.AddLabels(ctx, org, repo, number, []string{labels.WIP}); err != nil {
 			return err
 		}
-		return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
+		return ghc.DisableAutoMerge(ctx, pr.GetNodeID())
 	}
 
 	if !shouldHaveWIP && currentWIP {
@@ -91,7 +91,7 @@ func HandlePREventWIP(ctx context.Context, ghc ghclient.Client, org, repo string
 		if err != nil {
 			return err
 		}
-		return merge.CheckAndApplyAutoMerge(ctx, ghc, freshPR, org, repo, opts)
+		return merge.CheckAndApplyAutoMerge(ctx, ghc, freshPR, opts)
 	}
 
 	return nil
@@ -106,7 +106,7 @@ func InvalidateLGTMOnPush(ctx context.Context, ghc ghclient.Client, org, repo st
 	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.LGTM); err != nil && !merge.IsNotFoundError(err) {
 		return err
 	}
-	return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
+	return ghc.DisableAutoMerge(ctx, pr.GetNodeID())
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
@@ -118,6 +118,5 @@ func InvalidateApproveOnPush(ctx context.Context, ghc ghclient.Client, org, repo
 	if err := ghc.RemoveLabel(ctx, org, repo, number, labels.Approved); err != nil && !merge.IsNotFoundError(err) {
 		return err
 	}
-	return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
+	return ghc.DisableAutoMerge(ctx, pr.GetNodeID())
 }
-

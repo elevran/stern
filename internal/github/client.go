@@ -2,10 +2,9 @@ package github
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
+	"strings"
 
 	gh "github.com/google/go-github/v72/github"
 	"github.com/sirupsen/logrus"
@@ -34,9 +33,9 @@ type Client interface {
 	IsOrgMember(ctx context.Context, org, user string) (bool, error)
 	HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error)
 
-	// Auto-merge
-	EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error
-	DisableAutoMerge(ctx context.Context, owner, repo string, number int) error
+	// Auto-merge — uses GraphQL; nodeID is the PR's global node_id.
+	EnableAutoMerge(ctx context.Context, nodeID string, method string) error
+	DisableAutoMerge(ctx context.Context, nodeID string) error
 
 	// File content (for OWNERS parsing)
 	GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error)
@@ -150,43 +149,61 @@ func (c *realClient) HasWriteAccess(ctx context.Context, owner, repo, user strin
 	}
 }
 
-func (c *realClient) EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error {
-	body := map[string]string{"merge_method": method}
-	url := fmt.Sprintf("repos/%s/%s/pulls/%d/auto_merge", owner, repo, number)
-	req, err := c.ghc.NewRequest("PUT", url, body)
+// graphqlRequest is the JSON body for a GraphQL POST.
+type graphqlRequest struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables,omitempty"`
+}
+
+// graphqlResponse holds top-level GraphQL errors (mutations return null data on failure).
+type graphqlResponse struct {
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+func (c *realClient) graphql(ctx context.Context, query string, vars map[string]any) error {
+	req, err := c.ghc.NewRequest("POST", "graphql", graphqlRequest{Query: query, Variables: vars})
 	if err != nil {
 		return err
 	}
-	_, err = c.ghc.Do(ctx, req, nil)
-	if err != nil && isUnprocessable(err) {
-		return nil // already enabled
-	}
-	return err
-}
-
-func (c *realClient) DisableAutoMerge(ctx context.Context, owner, repo string, number int) error {
-	url := fmt.Sprintf("repos/%s/%s/pulls/%d/auto_merge", owner, repo, number)
-	req, err := c.ghc.NewRequest("DELETE", url, nil)
-	if err != nil {
+	var resp graphqlResponse
+	if _, err = c.ghc.Do(ctx, req, &resp); err != nil {
 		return err
 	}
-	_, err = c.ghc.Do(ctx, req, nil)
-	if err != nil && (isUnprocessable(err) || isNotFound(err)) {
-		return nil // auto-merge not enabled or not supported
+	if len(resp.Errors) > 0 {
+		return fmt.Errorf("graphql: %s", resp.Errors[0].Message)
 	}
-	return err
+	return nil
 }
 
-func isUnprocessable(err error) bool {
-	var ghErr *gh.ErrorResponse
-	return errors.As(err, &ghErr) && ghErr.Response != nil &&
-		ghErr.Response.StatusCode == http.StatusUnprocessableEntity
+// EnableAutoMerge enables GitHub auto-merge via GraphQL. The mutation is
+// idempotent — calling it when auto-merge is already enabled succeeds.
+func (c *realClient) EnableAutoMerge(ctx context.Context, nodeID string, method string) error {
+	if method == "" {
+		method = "SQUASH"
+	}
+	return c.graphql(ctx,
+		`mutation($id:ID!,$method:PullRequestMergeMethod!){
+			enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:$method}){
+				pullRequest{id}
+			}
+		}`,
+		map[string]any{"id": nodeID, "method": strings.ToUpper(method)},
+	)
 }
 
-func isNotFound(err error) bool {
-	var ghErr *gh.ErrorResponse
-	return errors.As(err, &ghErr) && ghErr.Response != nil &&
-		ghErr.Response.StatusCode == http.StatusNotFound
+// DisableAutoMerge disables GitHub auto-merge via GraphQL. The mutation is
+// idempotent — calling it when auto-merge is not enabled succeeds.
+func (c *realClient) DisableAutoMerge(ctx context.Context, nodeID string) error {
+	return c.graphql(ctx,
+		`mutation($id:ID!){
+			disablePullRequestAutoMerge(input:{pullRequestId:$id}){
+				pullRequest{id}
+			}
+		}`,
+		map[string]any{"id": nodeID},
+	)
 }
 
 func (c *realClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
@@ -265,11 +282,11 @@ func (c *dryRunClient) CreateIssueComment(ctx context.Context, owner, repo strin
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] CreateIssueComment")
 	return nil
 }
-func (c *dryRunClient) EnableAutoMerge(ctx context.Context, owner, repo string, number int, method string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "method": method}).Info("[dry-run] EnableAutoMerge")
+func (c *dryRunClient) EnableAutoMerge(_ context.Context, nodeID string, method string) error {
+	c.logger.WithFields(logrus.Fields{"nodeID": nodeID, "method": method}).Info("[dry-run] EnableAutoMerge")
 	return nil
 }
-func (c *dryRunClient) DisableAutoMerge(ctx context.Context, owner, repo string, number int) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] DisableAutoMerge")
+func (c *dryRunClient) DisableAutoMerge(_ context.Context, nodeID string) error {
+	c.logger.WithFields(logrus.Fields{"nodeID": nodeID}).Info("[dry-run] DisableAutoMerge")
 	return nil
 }

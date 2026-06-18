@@ -44,7 +44,11 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
-		return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)
+		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+		if err != nil {
+			return err
+		}
+		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
 	}
 
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.LGTM}); err != nil {
@@ -54,7 +58,7 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 	if err != nil {
 		return err
 	}
-	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, sc.Org, sc.Repo, h.opts)
+	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
@@ -86,4 +90,3 @@ func fileNames(files []*gh.CommitFile) []string {
 	}
 	return names
 }
-
