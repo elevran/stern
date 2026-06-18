@@ -27,6 +27,9 @@ func TestWIP_AddsLabel(t *testing.T) {
 	if !ghc.IssueLabels[1]["do-not-merge/wip"] {
 		t.Error("expected wip label added")
 	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /wip, got %v", ghc.Reactions)
+	}
 }
 
 func TestWIP_RemovesLabel(t *testing.T) {
@@ -39,6 +42,9 @@ func TestWIP_RemovesLabel(t *testing.T) {
 
 	if ghc.IssueLabels[1]["do-not-merge/wip"] {
 		t.Error("expected wip label removed")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /wip toggle-off, got %v", ghc.Reactions)
 	}
 }
 

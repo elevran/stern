@@ -171,8 +171,8 @@ func (c *realClient) DisableAutoMerge(ctx context.Context, owner, repo string, n
 		return err
 	}
 	_, err = c.ghc.Do(ctx, req, nil)
-	if err != nil && isUnprocessable(err) {
-		return nil // not enabled
+	if err != nil && (isUnprocessable(err) || isNotFound(err)) {
+		return nil // auto-merge not enabled or not supported
 	}
 	return err
 }
@@ -181,6 +181,12 @@ func isUnprocessable(err error) bool {
 	var ghErr *gh.ErrorResponse
 	return errors.As(err, &ghErr) && ghErr.Response != nil &&
 		ghErr.Response.StatusCode == http.StatusUnprocessableEntity
+}
+
+func isNotFound(err error) bool {
+	var ghErr *gh.ErrorResponse
+	return errors.As(err, &ghErr) && ghErr.Response != nil &&
+		ghErr.Response.StatusCode == http.StatusNotFound
 }
 
 func (c *realClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
