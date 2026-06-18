@@ -12,10 +12,17 @@ import (
 	"github.com/elevran/stern/internal/owners"
 )
 
+// approveClient is the minimum Client surface ApproveHandler uses.
+type approveClient interface {
+	ghclient.LabelsClient
+	ghclient.PullRequestsClient
+	ghclient.ContentClient
+}
+
 // ApproveHandler handles /approve and /approve cancel.
 type ApproveHandler struct {
 	nopPost
-	ghc  ghclient.Client
+	ghc  approveClient
 	opts *config.Options
 }
 

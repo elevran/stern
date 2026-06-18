@@ -14,10 +14,16 @@ import (
 	"github.com/elevran/stern/internal/merge"
 )
 
+// wipClient is the minimum Client surface WIPHandler uses.
+type wipClient interface {
+	ghclient.LabelsClient
+	ghclient.PullRequestsClient
+}
+
 // WIPHandler handles /wip (toggle).
 type WIPHandler struct {
 	nopPost
-	ghc  ghclient.Client
+	ghc  wipClient
 	opts *config.Options
 }
 
