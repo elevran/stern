@@ -26,6 +26,12 @@ func HandlePREvent(ctx context.Context, ghc ghclient.Client, org, repo string, e
 		"action": action,
 	})
 
+	sender := evt.GetSender().GetLogin()
+	if strings.HasSuffix(sender, "[bot]") || sender == opts.BotLogin {
+		log.WithField("sender", sender).Info("pr-event: skipping bot-triggered event")
+		return nil
+	}
+
 	if pr == nil {
 		log.Warn("pr-event: no pull request in payload")
 		return nil
@@ -120,4 +126,3 @@ func InvalidateApproveOnPush(ctx context.Context, ghc ghclient.Client, org, repo
 	}
 	return merge.DisableAutoMerge(ctx, ghc, org, repo, number)
 }
-
