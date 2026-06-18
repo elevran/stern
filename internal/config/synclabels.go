@@ -62,16 +62,16 @@ func DiffLabels(desired []LabelDefinition, current []*gh.Label) LabelPlan {
 // Print writes a human-readable plan to w.
 func (p *LabelPlan) Print(w io.Writer) {
 	for _, d := range p.Creates {
-		fmt.Fprintf(w, "  CREATE  %s  #%s  %q\n", d.Name, d.Color, d.Description)
+		_, _ = fmt.Fprintf(w, "  CREATE  %s  #%s  %q\n", d.Name, d.Color, d.Description)
 	}
 	for _, u := range p.Updates {
-		fmt.Fprintf(w, "  UPDATE  %s\n", u.desired.Name)
+		_, _ = fmt.Fprintf(w, "  UPDATE  %s\n", u.desired.Name)
 	}
 	for _, name := range p.Unchanged {
-		fmt.Fprintf(w, "  OK      %s\n", name)
+		_, _ = fmt.Fprintf(w, "  OK      %s\n", name)
 	}
 	for _, l := range p.Extras {
-		fmt.Fprintf(w, "  EXTRA   %s\n", l.GetName())
+		_, _ = fmt.Fprintf(w, "  EXTRA   %s\n", l.GetName())
 	}
 }
 
