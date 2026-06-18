@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/config"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 var (

@@ -6,7 +6,7 @@ import (
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"

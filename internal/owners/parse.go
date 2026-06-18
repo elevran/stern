@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 // File represents a parsed OWNERS file.

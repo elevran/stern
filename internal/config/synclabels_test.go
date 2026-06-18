@@ -8,7 +8,7 @@ import (
 	gh "github.com/google/go-github/v72/github"
 
 	"github.com/elevran/stern/internal/config"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 func TestDiffLabels_Create(t *testing.T) {

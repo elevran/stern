@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 	"github.com/elevran/stern/internal/owners"
 )
 
