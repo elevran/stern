@@ -139,5 +139,5 @@ func newPingHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) Hand
 // pingHandler handles /ping — confirms the bot is alive.
 type pingHandler struct{ nopPost }
 
-func (h *pingHandler) Pre(_ context.Context, _ *event.Context, _ []string) error   { return nil }
+func (h *pingHandler) Pre(_ context.Context, _ *event.Context, _ []string) error    { return nil }
 func (h *pingHandler) Handle(_ context.Context, _ *event.Context, _ []string) error { return nil }

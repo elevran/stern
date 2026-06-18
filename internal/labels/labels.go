@@ -1,7 +1,7 @@
 package labels
 
 const (
-	LGTM    = "lgtm"
+	LGTM     = "lgtm"
 	Approved = "approved"
 
 	Hold = "do-not-merge/hold"

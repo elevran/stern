@@ -4,8 +4,8 @@ import "fmt"
 
 // MergeOptions configures merge eligibility and auto-merge behavior.
 type MergeOptions struct {
-	Strategy       string   `yaml:"strategy"`       // native | bot
-	Method         string   `yaml:"method"`         // squash | merge | rebase
+	Strategy       string   `yaml:"strategy"` // native | bot
+	Method         string   `yaml:"method"`   // squash | merge | rebase
 	BlockingLabels []string `yaml:"blocking_labels"`
 }
 
