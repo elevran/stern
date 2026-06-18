@@ -122,7 +122,7 @@ func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo strin
 }
 
 func (c *realClient) CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error {
-	_, _, err := c.ghc.Reactions.CreateCommentReaction(ctx, owner, repo, commentID, content)
+	_, _, err := c.ghc.Reactions.CreateIssueCommentReaction(ctx, owner, repo, commentID, content)
 	return err
 }
 

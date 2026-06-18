@@ -148,8 +148,8 @@ func validOptions() *config.Options {
 		Org:  "elevran",
 		Repo: "stern",
 		Merge: config.MergeOptions{
-			Strategy:      "native",
-			Method:        "squash",
+			Strategy:       "native",
+			Method:         "squash",
 			BlockingLabels: []string{"do-not-merge/hold"},
 		},
 	}
