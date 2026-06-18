@@ -114,3 +114,47 @@ func TestLoadForPaths_CaseInsensitive(t *testing.T) {
 		t.Error("IsApprover should be case-insensitive")
 	}
 }
+
+func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	// Place an OWNERS file where the traversal would land.
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
+	ghc.FileContent["../../admin/OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
+
+	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+		[]string{"../../admin/foo.go", "../secret.go"})
+	if err != nil {
+		t.Fatalf("LoadForPaths() error = %v", err)
+	}
+	if result.HasOwners() {
+		t.Error("expected path traversal paths to be rejected, got owners")
+	}
+}
+
+func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
+
+	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+		[]string{"/etc/passwd"})
+	if err != nil {
+		t.Fatalf("LoadForPaths() error = %v", err)
+	}
+	if result.HasOwners() {
+		t.Error("expected absolute path to be rejected")
+	}
+}
+
+func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+
+	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+		[]string{"pkg/foo.go", "internal/bar/baz.go"})
+	if err != nil {
+		t.Fatalf("LoadForPaths() error = %v", err)
+	}
+	if !result.IsApprover("alice") {
+		t.Error("expected alice from root OWNERS for normal paths")
+	}
+}
