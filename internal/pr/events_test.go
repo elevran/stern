@@ -131,3 +131,49 @@ func TestInvalidateApproveOnPush(t *testing.T) {
 		t.Error("expected approved label removed on push")
 	}
 }
+
+func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.PullRequests[1] = &gh.PullRequest{
+		Number: gh.Ptr(1),
+		Title:  gh.Ptr("[WIP] bot PR"),
+		Draft:  gh.Ptr(false),
+		Labels: []*gh.Label{},
+	}
+	evt := &gh.PullRequestEvent{
+		Action:      gh.Ptr("synchronize"),
+		Sender:      &gh.User{Login: gh.Ptr("some-bot[bot]")},
+		PullRequest: ghc.PullRequests[1],
+	}
+	opts := &config.Options{}
+
+	if err := pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts); err != nil {
+		t.Fatalf("HandlePREvent() error = %v", err)
+	}
+	if len(ghc.IssueLabels) > 0 {
+		t.Error("expected no label mutations for bot-sender event")
+	}
+}
+
+func TestHandlePREvent_BotLoginSkipped(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.PullRequests[1] = &gh.PullRequest{
+		Number: gh.Ptr(1),
+		Title:  gh.Ptr("Normal PR"),
+		Draft:  gh.Ptr(false),
+		Labels: []*gh.Label{},
+	}
+	evt := &gh.PullRequestEvent{
+		Action:      gh.Ptr("synchronize"),
+		Sender:      &gh.User{Login: gh.Ptr("stern-bot")},
+		PullRequest: ghc.PullRequests[1],
+	}
+	opts := &config.Options{BotLogin: "stern-bot"}
+
+	if err := pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts); err != nil {
+		t.Fatalf("HandlePREvent() error = %v", err)
+	}
+	if len(ghc.IssueLabels) > 0 {
+		t.Error("expected no label mutations for configured bot login")
+	}
+}
