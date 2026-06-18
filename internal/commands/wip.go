@@ -49,5 +49,5 @@ func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) 
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.WIP}); err != nil {
 		return err
 	}
-	return h.ghc.DisableAutoMerge(ctx, sc.PR.GetNodeID())
+	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.GetNodeID())
 }
