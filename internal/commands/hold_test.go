@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	gh "github.com/google/go-github/v72/github"
+
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 )
@@ -77,6 +79,42 @@ func TestHold_Cancel_WithWriteAccess(t *testing.T) {
 	}
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
 		t.Errorf("expected +1 reaction after successful /hold cancel, got %v", ghc.Reactions)
+	}
+}
+
+func TestHold_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "maintainer"
+	ghc.WriteAccess["elevran/stern/maintainer"] = true
+	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
+
+	// After hold is removed, GetPullRequest returns a PR with lgtm + approved → eligible.
+	ghc.PullRequests[1].Labels = []*gh.Label{
+		{Name: gh.Ptr("lgtm")},
+		{Name: gh.Ptr("approved")},
+	}
+
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
+
+	if ghc.IssueLabels[1]["do-not-merge/hold"] {
+		t.Error("expected hold label removed")
+	}
+	if len(ghc.AutoMergeEnabled) == 0 {
+		t.Error("expected EnableAutoMerge called when PR becomes eligible after hold cancel")
+	}
+	if len(ghc.AutoMergeDisabled) > 0 {
+		t.Error("expected DisableAutoMerge NOT called when PR is eligible")
+	}
+}
+
+func TestHold_AddsLabel_DisablesAutoMerge(t *testing.T) {
+	sc, ghc := prContext("author")
+	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
+
+	if len(ghc.AutoMergeDisabled) == 0 {
+		t.Error("expected DisableAutoMerge called when hold label added")
 	}
 }
 

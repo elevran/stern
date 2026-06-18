@@ -7,8 +7,8 @@ import (
 	gh "github.com/google/go-github/v72/github"
 
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/merge"
 	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/merge"
 )
 
 func pr(labelNames ...string) *gh.PullRequest {
@@ -18,7 +18,8 @@ func pr(labelNames ...string) *gh.PullRequest {
 		labels[i] = &gh.Label{Name: &name}
 	}
 	num := 1
-	return &gh.PullRequest{Number: &num, Labels: labels}
+	nodeID := "test-node-id"
+	return &gh.PullRequest{Number: &num, NodeID: &nodeID, Labels: labels}
 }
 
 func opts() *config.Options {
@@ -98,33 +99,21 @@ func TestCheckEligibility_MultipleBlockers(t *testing.T) {
 	}
 }
 
-func TestEnableAutoMerge_AlreadyEnabled(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	// Default mock returns nil; simulate "already enabled" by doing nothing extra
-	if err := merge.EnableAutoMerge(context.Background(), ghc, "o", "r", 1, "squash"); err != nil {
-		t.Errorf("EnableAutoMerge() error = %v", err)
-	}
-}
-
-func TestDisableAutoMerge_NotEnabled(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	if err := merge.DisableAutoMerge(context.Background(), ghc, "o", "r", 1); err != nil {
-		t.Errorf("DisableAutoMerge() error = %v", err)
-	}
-}
-
 func TestCheckAndApplyAutoMerge_EnablesWhenReady(t *testing.T) {
 	ghc := ghclient.NewMockClient()
 	p := pr("lgtm", "approved")
-	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, "o", "r", opts()); err != nil {
+	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
 		t.Errorf("CheckAndApplyAutoMerge() error = %v", err)
+	}
+	if ghc.Errors["EnableAutoMerge"] != nil {
+		t.Error("expected EnableAutoMerge to be called")
 	}
 }
 
 func TestCheckAndApplyAutoMerge_DisablesWhenNotReady(t *testing.T) {
 	ghc := ghclient.NewMockClient()
 	p := pr("lgtm") // missing approved
-	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, "o", "r", opts()); err != nil {
+	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
 		t.Errorf("CheckAndApplyAutoMerge() error = %v", err)
 	}
 }

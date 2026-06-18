@@ -43,12 +43,11 @@ func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) 
 		if err != nil {
 			return err
 		}
-		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, sc.Org, sc.Repo, h.opts)
+		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
 	}
 
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.WIP}); err != nil {
 		return err
 	}
-	return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)
+	return h.ghc.DisableAutoMerge(ctx, sc.PR.GetNodeID())
 }
-

@@ -42,7 +42,11 @@ func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []s
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !merge.IsNotFoundError(err) {
 			return err
 		}
-		return merge.DisableAutoMerge(ctx, h.ghc, sc.Org, sc.Repo, sc.IssueNumber)
+		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+		if err != nil {
+			return err
+		}
+		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
 	}
 
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Approved}); err != nil {
@@ -52,7 +56,7 @@ func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []s
 	if err != nil {
 		return err
 	}
-	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, sc.Org, sc.Repo, h.opts)
+	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
 }
 
 func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Context) error {

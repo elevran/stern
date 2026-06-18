@@ -10,19 +10,21 @@ import (
 // MockClient is an in-process mock for tests. Zero value is usable.
 type MockClient struct {
 	// Pre-loaded read state.
-	RepoLabels   map[string]*gh.Label      // label name -> label
-	PullRequests map[int]*gh.PullRequest   // PR number -> PR
-	PRFiles      map[int][]*gh.CommitFile  // PR number -> files
-	FileContent  map[string][]byte         // "path@ref" -> content
-	OrgMembers   map[string]bool           // "org/user" -> is member
-	WriteAccess  map[string]bool           // "owner/repo/user" -> has write
+	RepoLabels   map[string]*gh.Label     // label name -> label
+	PullRequests map[int]*gh.PullRequest  // PR number -> PR
+	PRFiles      map[int][]*gh.CommitFile // PR number -> files
+	FileContent  map[string][]byte        // "path@ref" -> content
+	OrgMembers   map[string]bool          // "org/user" -> is member
+	WriteAccess  map[string]bool          // "owner/repo/user" -> has write
 
 	// Mutable state modified by calls.
 	IssueLabels map[int]map[string]bool // issue number -> set of label names
 
 	// Call records for assertions.
-	Reactions []ReactionRecord
-	Comments  []CommentRecord
+	Reactions         []ReactionRecord
+	Comments          []CommentRecord
+	AutoMergeEnabled  []string // nodeIDs passed to EnableAutoMerge
+	AutoMergeDisabled []string // nodeIDs passed to DisableAutoMerge
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -161,12 +163,20 @@ func (m *MockClient) HasWriteAccess(_ context.Context, owner, repo, user string)
 	return m.WriteAccess[owner+"/"+repo+"/"+user], nil
 }
 
-func (m *MockClient) EnableAutoMerge(_ context.Context, _, _ string, _ int, _ string) error {
-	return m.err("EnableAutoMerge")
+func (m *MockClient) EnableAutoMerge(_ context.Context, nodeID string, _ string) error {
+	if err := m.err("EnableAutoMerge"); err != nil {
+		return err
+	}
+	m.AutoMergeEnabled = append(m.AutoMergeEnabled, nodeID)
+	return nil
 }
 
-func (m *MockClient) DisableAutoMerge(_ context.Context, _, _ string, _ int) error {
-	return m.err("DisableAutoMerge")
+func (m *MockClient) DisableAutoMerge(_ context.Context, nodeID string) error {
+	if err := m.err("DisableAutoMerge"); err != nil {
+		return err
+	}
+	m.AutoMergeDisabled = append(m.AutoMergeDisabled, nodeID)
+	return nil
 }
 
 func (m *MockClient) GetFileContent(_ context.Context, _, _, path, ref string) ([]byte, error) {

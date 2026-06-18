@@ -9,8 +9,8 @@ import (
 	gh "github.com/google/go-github/v72/github"
 
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/labels"
 	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/labels"
 )
 
 // EligibilityResult reports whether a PR is ready to auto-merge.
@@ -56,29 +56,19 @@ func CheckEligibility(pr *gh.PullRequest, opts *config.Options) EligibilityResul
 	}
 }
 
-// EnableAutoMerge enables GitHub's native auto-merge on a PR.
-// Returns nil if auto-merge is already enabled.
-func EnableAutoMerge(ctx context.Context, ghc ghclient.Client, owner, repo string, number int, method string) error {
-	if method == "" {
-		method = "squash"
-	}
-	return ghc.EnableAutoMerge(ctx, owner, repo, number, method)
-}
-
-// DisableAutoMerge disables GitHub's native auto-merge on a PR.
-// Returns nil if auto-merge is not enabled.
-func DisableAutoMerge(ctx context.Context, ghc ghclient.Client, owner, repo string, number int) error {
-	return ghc.DisableAutoMerge(ctx, owner, repo, number)
-}
-
 // CheckAndApplyAutoMerge calls CheckEligibility and enables/disables auto-merge
 // on the PR accordingly. It is a convenience wrapper used by label-modifying handlers.
-func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.PullRequest, owner, repo string, opts *config.Options) error {
+func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.PullRequest, opts *config.Options) error {
 	result := CheckEligibility(pr, opts)
+	nodeID := pr.GetNodeID()
 	if result.Ready {
-		return EnableAutoMerge(ctx, ghc, owner, repo, pr.GetNumber(), opts.Merge.Method)
+		method := opts.Merge.Method
+		if method == "" {
+			method = "squash"
+		}
+		return ghc.EnableAutoMerge(ctx, nodeID, method)
 	}
-	return DisableAutoMerge(ctx, ghc, owner, repo, pr.GetNumber())
+	return ghc.DisableAutoMerge(ctx, nodeID)
 }
 
 // IsNotFoundError reports whether err is a 404 from the GitHub API.
