@@ -54,6 +54,9 @@ func TestLGTM_AddsLabel(t *testing.T) {
 	if !ghc.IssueLabels[1]["lgtm"] {
 		t.Error("expected lgtm label to be added")
 	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /lgtm, got %v", ghc.Reactions)
+	}
 }
 
 func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
@@ -64,6 +67,9 @@ func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 
 	if ghc.IssueLabels[1]["lgtm"] {
 		t.Error("expected lgtm label to be removed on cancel")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /lgtm cancel, got %v", ghc.Reactions)
 	}
 }
 
@@ -89,6 +95,9 @@ func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 
 	if !ghc.IssueLabels[1]["lgtm"] {
 		t.Error("expected lgtm added when allow_self_lgtm=true")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful self-/lgtm, got %v", ghc.Reactions)
 	}
 }
 
@@ -120,6 +129,9 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 
 	if !ghc.IssueLabels[1]["lgtm"] {
 		t.Error("expected lgtm added when no OWNERS files present")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /lgtm, got %v", ghc.Reactions)
 	}
 }
 

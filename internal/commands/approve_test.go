@@ -36,6 +36,9 @@ func TestApprove_AddsLabel(t *testing.T) {
 	if !ghc.IssueLabels[1]["approved"] {
 		t.Error("expected approved label to be added")
 	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
+	}
 }
 
 func TestApprove_Cancel_RemovesLabel(t *testing.T) {
@@ -48,6 +51,9 @@ func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 
 	if ghc.IssueLabels[1]["approved"] {
 		t.Error("expected approved label removed on cancel")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /approve cancel, got %v", ghc.Reactions)
 	}
 }
 
@@ -102,5 +108,8 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 
 	if !ghc.IssueLabels[1]["approved"] {
 		t.Error("expected approved label added")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
 	}
 }

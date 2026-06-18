@@ -25,6 +25,9 @@ func TestHold_AddsLabel(t *testing.T) {
 	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
 		t.Error("expected hold label to be added")
 	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /hold, got %v", ghc.Reactions)
+	}
 }
 
 func TestHold_AnyOrgMemberCanHold(t *testing.T) {
@@ -37,6 +40,9 @@ func TestHold_AnyOrgMemberCanHold(t *testing.T) {
 
 	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
 		t.Error("expected any org member to be able to hold")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /hold, got %v", ghc.Reactions)
 	}
 }
 
@@ -68,6 +74,9 @@ func TestHold_Cancel_WithWriteAccess(t *testing.T) {
 
 	if ghc.IssueLabels[1]["do-not-merge/hold"] {
 		t.Error("expected hold label removed for writer")
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction after successful /hold cancel, got %v", ghc.Reactions)
 	}
 }
 

@@ -31,11 +31,11 @@ jobs:
       group: stern-comment-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -54,11 +54,11 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -76,11 +76,11 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -99,10 +99,10 @@ jobs:
   #     contents: read
   #     pull-requests: write
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v6
   #       with:
   #         ref: main
-  #     - uses: actions/setup-go@v5
+  #     - uses: actions/setup-go@v6
   #       with:
   #         go-version-file: go.mod
   #         cache: true
@@ -121,10 +121,10 @@ jobs:
   #     issues: write
   #     pull-requests: write
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v6
   #       with:
   #         ref: main
-  #     - uses: actions/setup-go@v5
+  #     - uses: actions/setup-go@v6
   #       with:
   #         go-version-file: go.mod
   #         cache: true
