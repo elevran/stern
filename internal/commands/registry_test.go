@@ -7,7 +7,7 @@ import (
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 func newSternContext() *event.Context {

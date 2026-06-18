@@ -10,7 +10,7 @@ import (
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 // Handler processes a single slash command.

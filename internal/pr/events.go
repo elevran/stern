@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/elevran/stern/internal/config"
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 )

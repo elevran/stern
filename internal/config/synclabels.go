@@ -8,7 +8,7 @@ import (
 
 	gh "github.com/google/go-github/v72/github"
 
-	ghclient "github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/ghclient"
 )
 
 type labelUpdateItem struct {
