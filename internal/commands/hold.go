@@ -54,5 +54,5 @@ func (h *HoldHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Hold}); err != nil {
 		return err
 	}
-	return h.ghc.DisableAutoMerge(ctx, sc.PR.GetNodeID())
+	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.GetNodeID())
 }

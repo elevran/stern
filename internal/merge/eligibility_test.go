@@ -2,6 +2,7 @@ package merge_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	gh "github.com/google/go-github/v72/github"
@@ -96,6 +97,56 @@ func TestCheckEligibility_MultipleBlockers(t *testing.T) {
 	}
 	if len(result.BlockingLabels) != 2 {
 		t.Errorf("expected 2 blocking labels, got %v", result.BlockingLabels)
+	}
+}
+
+func TestCheckAndApplyAutoMerge_DisableUnavailable_NonFatal(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
+
+	// Only lgtm — not eligible, so DisableAutoMerge is called.
+	p := pr("lgtm")
+	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
+		t.Errorf("auto-merge unavailable should be non-fatal, got: %v", err)
+	}
+}
+
+func TestCheckAndApplyAutoMerge_EnableUnavailable_NonFatal(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.Errors["EnableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
+
+	// Both labels present — eligible, so EnableAutoMerge is called.
+	p := pr("lgtm", "approved")
+	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
+		t.Errorf("auto-merge unavailable should be non-fatal, got: %v", err)
+	}
+}
+
+func TestCheckAndApplyAutoMerge_OtherDisableError_Propagates(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: something unexpected")
+
+	p := pr("lgtm")
+	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err == nil {
+		t.Error("unexpected error should propagate")
+	}
+}
+
+func TestDisableAutoMerge_Unavailable_ReturnsNil(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
+
+	if err := merge.DisableAutoMerge(context.Background(), ghc, "PR_test_node_id"); err != nil {
+		t.Errorf("unavailable error should be suppressed, got: %v", err)
+	}
+}
+
+func TestDisableAutoMerge_OtherError_Propagates(t *testing.T) {
+	ghc := ghclient.NewMockClient()
+	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: some real failure")
+
+	if err := merge.DisableAutoMerge(context.Background(), ghc, "PR_test_node_id"); err == nil {
+		t.Error("non-unavailable error should propagate")
 	}
 }
 

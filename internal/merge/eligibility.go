@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	gh "github.com/google/go-github/v72/github"
+	"github.com/sirupsen/logrus"
 
 	"github.com/elevran/stern/internal/config"
 	ghclient "github.com/elevran/stern/internal/github"
@@ -58,6 +59,7 @@ func CheckEligibility(pr *gh.PullRequest, opts *config.Options) EligibilityResul
 
 // CheckAndApplyAutoMerge calls CheckEligibility and enables/disables auto-merge
 // on the PR accordingly. It is a convenience wrapper used by label-modifying handlers.
+// Auto-merge errors are non-fatal: the primary label operation already succeeded.
 func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.PullRequest, opts *config.Options) error {
 	result := CheckEligibility(pr, opts)
 	nodeID := pr.GetNodeID()
@@ -66,9 +68,38 @@ func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.Client, pr *gh.Pul
 		if method == "" {
 			method = "squash"
 		}
-		return ghc.EnableAutoMerge(ctx, nodeID, method)
+		if err := ghc.EnableAutoMerge(ctx, nodeID, method); err != nil {
+			if isAutoMergeUnavailable(err) {
+				logrus.WithError(err).Warn("auto-merge: PR is eligible but auto-merge could not be enabled; " +
+					"ensure 'Allow auto-merge' is enabled in repository Settings → General")
+				return nil
+			}
+			return err
+		}
+		return nil
 	}
-	return ghc.DisableAutoMerge(ctx, nodeID)
+	return DisableAutoMerge(ctx, ghc, nodeID)
+}
+
+// DisableAutoMerge disables GitHub's native auto-merge on a PR. If the feature
+// is unavailable for this repository, the error is logged at debug level and nil
+// is returned — disabling is a no-op when auto-merge was never enabled.
+func DisableAutoMerge(ctx context.Context, ghc ghclient.Client, nodeID string) error {
+	if err := ghc.DisableAutoMerge(ctx, nodeID); err != nil {
+		if isAutoMergeUnavailable(err) {
+			logrus.WithError(err).Debug("auto-merge: disable skipped — feature not available for this repository")
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// isAutoMergeUnavailable reports whether err is GitHub's "Resource not accessible
+// by integration" response, which occurs when auto-merge is disabled at the
+// repository level (Settings → General → Allow auto-merge) or the token lacks access.
+func isAutoMergeUnavailable(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Resource not accessible by integration")
 }
 
 // IsNotFoundError reports whether err is a 404 from the GitHub API.
