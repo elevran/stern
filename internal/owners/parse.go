@@ -39,7 +39,11 @@ func LoadForPaths(ctx context.Context, ghc ghclient.Client, owner, repo, ref str
 	reviewerSet := make(map[string]bool)
 
 	for _, path := range changedPaths {
-		dirs := ancestorDirs(path)
+		clean := filepath.Clean(path)
+		if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+			continue
+		}
+		dirs := ancestorDirs(clean)
 		for _, dir := range dirs {
 			ownersPath := ownersFilePath(dir)
 			data, err := ghc.GetFileContent(ctx, owner, repo, ownersPath, ref)
