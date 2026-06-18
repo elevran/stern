@@ -1,4 +1,4 @@
-package ghclient
+package github
 
 import (
 	"context"
@@ -14,16 +14,16 @@ import (
 // Client abstracts GitHub API operations used by stern.
 type Client interface {
 	// Label management
-	ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error)
-	CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error
-	UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error
+	ListRepoLabels(ctx context.Context, owner, repo string) ([]Label, error)
+	CreateLabel(ctx context.Context, owner, repo string, label Label) error
+	UpdateLabel(ctx context.Context, owner, repo, name string, label Label) error
 	DeleteLabel(ctx context.Context, owner, repo, name string) error
 	AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error
 	RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error
 
 	// Pull requests
-	GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error)
-	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error)
+	GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error)
+	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error)
 
 	// Reactions and comments
 	CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error
@@ -56,15 +56,17 @@ func NewFromEnv() (Client, error) {
 	return &realClient{ghc: gh.NewClient(tc)}, nil
 }
 
-func (c *realClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error) {
-	var all []*gh.Label
+func (c *realClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]Label, error) {
+	var all []Label
 	opts := &gh.ListOptions{PerPage: 100}
 	for {
 		labels, resp, err := c.ghc.Issues.ListLabels(ctx, owner, repo, opts)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, labels...)
+		for _, l := range labels {
+			all = append(all, labelFromGH(l))
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -73,13 +75,13 @@ func (c *realClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]
 	return all, nil
 }
 
-func (c *realClient) CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error {
-	_, _, err := c.ghc.Issues.CreateLabel(ctx, owner, repo, label)
+func (c *realClient) CreateLabel(ctx context.Context, owner, repo string, label Label) error {
+	_, _, err := c.ghc.Issues.CreateLabel(ctx, owner, repo, labelToGH(label))
 	return err
 }
 
-func (c *realClient) UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error {
-	_, _, err := c.ghc.Issues.EditLabel(ctx, owner, repo, name, label)
+func (c *realClient) UpdateLabel(ctx context.Context, owner, repo, name string, label Label) error {
+	_, _, err := c.ghc.Issues.EditLabel(ctx, owner, repo, name, labelToGH(label))
 	return err
 }
 
@@ -98,20 +100,25 @@ func (c *realClient) RemoveLabel(ctx context.Context, owner, repo string, number
 	return err
 }
 
-func (c *realClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error) {
+func (c *realClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error) {
 	pr, _, err := c.ghc.PullRequests.Get(ctx, owner, repo, number)
-	return pr, err
+	if err != nil {
+		return PullRequest{}, err
+	}
+	return PullRequestFromGH(pr), nil
 }
 
-func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error) {
-	var all []*gh.CommitFile
+func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error) {
+	var all []CommitFile
 	opts := &gh.ListOptions{PerPage: 100}
 	for {
 		files, resp, err := c.ghc.PullRequests.ListFiles(ctx, owner, repo, number, opts)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, files...)
+		for _, f := range files {
+			all = append(all, CommitFile{Filename: f.GetFilename()})
+		}
 		if resp.NextPage == 0 {
 			break
 		}
@@ -234,13 +241,13 @@ func NewDryRun(inner Client, logger *logrus.Logger) Client {
 }
 
 // Read-through: these methods pass to inner unchanged.
-func (c *dryRunClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]*gh.Label, error) {
+func (c *dryRunClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]Label, error) {
 	return c.inner.ListRepoLabels(ctx, owner, repo)
 }
-func (c *dryRunClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*gh.PullRequest, error) {
+func (c *dryRunClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error) {
 	return c.inner.GetPullRequest(ctx, owner, repo, number)
 }
-func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]*gh.CommitFile, error) {
+func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error) {
 	return c.inner.ListPullRequestFiles(ctx, owner, repo, number)
 }
 func (c *dryRunClient) IsOrgMember(ctx context.Context, org, user string) (bool, error) {
@@ -254,11 +261,11 @@ func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, re
 }
 
 // Mutating methods: log and no-op.
-func (c *dryRunClient) CreateLabel(ctx context.Context, owner, repo string, label *gh.Label) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": label.GetName()}).Info("[dry-run] CreateLabel")
+func (c *dryRunClient) CreateLabel(ctx context.Context, owner, repo string, label Label) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": label.Name}).Info("[dry-run] CreateLabel")
 	return nil
 }
-func (c *dryRunClient) UpdateLabel(ctx context.Context, owner, repo, name string, label *gh.Label) error {
+func (c *dryRunClient) UpdateLabel(ctx context.Context, owner, repo, name string, label Label) error {
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": name}).Info("[dry-run] UpdateLabel")
 	return nil
 }

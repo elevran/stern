@@ -1,21 +1,19 @@
-package ghclient
+package github
 
 import (
 	"context"
 	"fmt"
-
-	gh "github.com/google/go-github/v72/github"
 )
 
 // MockClient is an in-process mock for tests. Zero value is usable.
 type MockClient struct {
 	// Pre-loaded read state.
-	RepoLabels   map[string]*gh.Label     // label name -> label
-	PullRequests map[int]*gh.PullRequest  // PR number -> PR
-	PRFiles      map[int][]*gh.CommitFile // PR number -> files
-	FileContent  map[string][]byte        // "path@ref" -> content
-	OrgMembers   map[string]bool          // "org/user" -> is member
-	WriteAccess  map[string]bool          // "owner/repo/user" -> has write
+	RepoLabels   map[string]Label     // label name -> label
+	PullRequests map[int]*PullRequest // PR number -> PR
+	PRFiles      map[int][]CommitFile // PR number -> files
+	FileContent  map[string][]byte    // "path@ref" -> content
+	OrgMembers   map[string]bool      // "org/user" -> is member
+	WriteAccess  map[string]bool      // "owner/repo/user" -> has write
 
 	// Mutable state modified by calls.
 	IssueLabels map[int]map[string]bool // issue number -> set of label names
@@ -42,9 +40,9 @@ type CommentRecord struct {
 
 func NewMockClient() *MockClient {
 	return &MockClient{
-		RepoLabels:   make(map[string]*gh.Label),
-		PullRequests: make(map[int]*gh.PullRequest),
-		PRFiles:      make(map[int][]*gh.CommitFile),
+		RepoLabels:   make(map[string]Label),
+		PullRequests: make(map[int]*PullRequest),
+		PRFiles:      make(map[int][]CommitFile),
 		FileContent:  make(map[string][]byte),
 		OrgMembers:   make(map[string]bool),
 		WriteAccess:  make(map[string]bool),
@@ -57,26 +55,26 @@ func (m *MockClient) err(method string) error {
 	return m.Errors[method]
 }
 
-func (m *MockClient) ListRepoLabels(_ context.Context, _, _ string) ([]*gh.Label, error) {
+func (m *MockClient) ListRepoLabels(_ context.Context, _, _ string) ([]Label, error) {
 	if err := m.err("ListRepoLabels"); err != nil {
 		return nil, err
 	}
-	labels := make([]*gh.Label, 0, len(m.RepoLabels))
+	labels := make([]Label, 0, len(m.RepoLabels))
 	for _, l := range m.RepoLabels {
 		labels = append(labels, l)
 	}
 	return labels, nil
 }
 
-func (m *MockClient) CreateLabel(_ context.Context, _, _ string, label *gh.Label) error {
+func (m *MockClient) CreateLabel(_ context.Context, _, _ string, label Label) error {
 	if err := m.err("CreateLabel"); err != nil {
 		return err
 	}
-	m.RepoLabels[label.GetName()] = label
+	m.RepoLabels[label.Name] = label
 	return nil
 }
 
-func (m *MockClient) UpdateLabel(_ context.Context, _, _, name string, label *gh.Label) error {
+func (m *MockClient) UpdateLabel(_ context.Context, _, _, name string, label Label) error {
 	if err := m.err("UpdateLabel"); err != nil {
 		return err
 	}
@@ -115,18 +113,18 @@ func (m *MockClient) RemoveLabel(_ context.Context, _, _ string, number int, lab
 	return nil
 }
 
-func (m *MockClient) GetPullRequest(_ context.Context, _, _ string, number int) (*gh.PullRequest, error) {
+func (m *MockClient) GetPullRequest(_ context.Context, _, _ string, number int) (PullRequest, error) {
 	if err := m.err("GetPullRequest"); err != nil {
-		return nil, err
+		return PullRequest{}, err
 	}
 	pr, ok := m.PullRequests[number]
 	if !ok {
-		return nil, fmt.Errorf("PR %d not found", number)
+		return PullRequest{}, fmt.Errorf("PR %d not found", number)
 	}
-	return pr, nil
+	return *pr, nil
 }
 
-func (m *MockClient) ListPullRequestFiles(_ context.Context, _, _ string, number int) ([]*gh.CommitFile, error) {
+func (m *MockClient) ListPullRequestFiles(_ context.Context, _, _ string, number int) ([]CommitFile, error) {
 	if err := m.err("ListPullRequestFiles"); err != nil {
 		return nil, err
 	}

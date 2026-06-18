@@ -5,11 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 )
@@ -17,12 +15,12 @@ import (
 // WIPHandler handles /wip (toggle).
 type WIPHandler struct {
 	nopPost
-	ghc  ghclient.Client
+	ghc  github.Client
 	opts *config.Options
 }
 
 // NewWIPHandler constructs a WIPHandler with all dependencies injected.
-func NewWIPHandler(_ *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
+func NewWIPHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
 	return &WIPHandler{ghc: ghc, opts: opts}
 }
 
@@ -34,9 +32,9 @@ func (h *WIPHandler) Pre(_ context.Context, sc *event.Context, _ []string) error
 }
 
 func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
-	hasWIP := slices.ContainsFunc(sc.PR.Labels, func(l *gh.Label) bool { return strings.EqualFold(l.GetName(), labels.WIP) })
+	hasWIP := slices.ContainsFunc(sc.PR.Labels, func(l string) bool { return strings.EqualFold(l, labels.WIP) })
 	if hasWIP {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.WIP); err != nil && !merge.IsNotFoundError(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.WIP); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
 		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
@@ -49,5 +47,5 @@ func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) 
 	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.WIP}); err != nil {
 		return err
 	}
-	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.GetNodeID())
+	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.NodeID)
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 )
 
 var (
@@ -54,13 +54,13 @@ func init() {
 	rootCmd.AddCommand(newConfigCmd())
 }
 
-func buildClient() (ghclient.Client, error) {
-	ghc, err := ghclient.NewFromEnv()
+func buildClient() (github.Client, error) {
+	ghc, err := github.NewFromEnv()
 	if err != nil {
 		return nil, err
 	}
 	if dryRun {
-		return ghclient.NewDryRun(ghc, log), nil
+		return github.NewDryRun(ghc, log), nil
 	}
 	return ghc, nil
 }

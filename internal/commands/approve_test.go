@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
+	"github.com/elevran/stern/internal/github"
 )
 
 func approveOpts(allowSelf bool) *config.Options {
@@ -28,7 +27,7 @@ func TestApprove_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
 	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
-	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("main.go")}}
+	ghc.PRFiles[1] = []github.CommitFile{{Filename: "main.go"}}
 
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
@@ -76,7 +75,7 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "outsider"
 	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
-	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("main.go")}}
+	ghc.PRFiles[1] = []github.CommitFile{{Filename: "main.go"}}
 
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
@@ -93,9 +92,8 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
 	// Pre-load the PR with lgtm already present.
-	ghc.PullRequests[1].Labels = []*gh.Label{{Name: gh.Ptr("lgtm")}}
+	ghc.PullRequests[1].Labels = []string{"lgtm"}
 	// After approve, GetPullRequest will return the updated PR.
-	// We need to simulate adding "approved" to the returned PR.
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
 	// No OWNERS files: any commenter can approve.
 

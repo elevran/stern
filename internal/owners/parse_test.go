@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/owners"
 )
 
 func TestLoadForPaths_NoOwners(t *testing.T) {
-	ghc := ghclient.NewMockClient() // no files loaded
+	ghc := github.NewMockClient() // no files loaded
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"pkg/foo.go"})
 	if err != nil {
 		t.Fatalf("LoadForPaths() error = %v", err)
@@ -20,7 +20,7 @@ func TestLoadForPaths_NoOwners(t *testing.T) {
 }
 
 func TestLoadForPaths_RootOwners(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@abc123"] = []byte(`
 approvers:
   - alice
@@ -44,7 +44,7 @@ reviewers:
 }
 
 func TestLoadForPaths_DirectoryOwners(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["pkg/OWNERS@abc123"] = []byte(`
 approvers:
   - alice
@@ -59,7 +59,7 @@ approvers:
 }
 
 func TestLoadForPaths_WalksHierarchy(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	// Root OWNERS has alice; pkg/sub/ OWNERS has bob.
 	// A file in pkg/sub/ should find both.
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
@@ -78,7 +78,7 @@ func TestLoadForPaths_WalksHierarchy(t *testing.T) {
 }
 
 func TestLoadForPaths_AliasExpansion(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS_ALIASES@sha"] = []byte(`
 aliases:
   team-eng:
@@ -100,7 +100,7 @@ aliases:
 }
 
 func TestLoadForPaths_CaseInsensitive(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - Alice\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"foo.go"})
@@ -116,7 +116,7 @@ func TestLoadForPaths_CaseInsensitive(t *testing.T) {
 }
 
 func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	// Place an OWNERS file where the traversal would land.
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
 	ghc.FileContent["../../admin/OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
@@ -132,7 +132,7 @@ func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
 }
 
 func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
@@ -146,7 +146,7 @@ func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
 }
 
 func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",

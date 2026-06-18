@@ -7,7 +7,7 @@ import (
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 )
 
 func newSternContext() *event.Context {
@@ -21,7 +21,7 @@ func newSternContext() *event.Context {
 }
 
 func TestDispatch_Ping(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -40,7 +40,7 @@ func TestDispatch_Ping(t *testing.T) {
 }
 
 func TestDispatch_UnknownCommand(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -56,7 +56,7 @@ func TestDispatch_UnknownCommand(t *testing.T) {
 }
 
 func TestDispatch_MultipleCommands(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -78,7 +78,7 @@ func TestDispatch_MultipleCommands(t *testing.T) {
 }
 
 func TestDispatch_NonCommandLinesIgnored(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -92,7 +92,7 @@ func TestDispatch_NonCommandLinesIgnored(t *testing.T) {
 }
 
 func TestDispatch_PermissionError(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -110,7 +110,7 @@ func TestDispatch_PermissionError(t *testing.T) {
 }
 
 func TestDispatch_InternalError(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	opts := &config.Options{}
 	sc := newSternContext()
 
@@ -130,7 +130,7 @@ func TestDispatch_InternalError(t *testing.T) {
 // denyHandler always returns a permission error from Pre.
 type denyHandler struct{}
 
-func newDenyHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) commands.Handler {
+func newDenyHandler(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 	return denyHandler{}
 }
 
@@ -145,7 +145,7 @@ func (denyHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error
 // failHandler always returns an internal error from Handle.
 type failHandler struct{}
 
-func newFailHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) commands.Handler {
+func newFailHandler(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 	return failHandler{}
 }
 

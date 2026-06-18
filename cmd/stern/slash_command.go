@@ -49,11 +49,11 @@ func runSlashCommand(_ *cobra.Command, _ []string) error {
 
 	// Hydrate PR data when the comment is on a pull request.
 	if evt.Issue != nil && evt.Issue.IsPullRequest() {
-		pr, err := ghc.GetPullRequest(context.Background(), org, repo, sc.IssueNumber)
+		pullReq, err := ghc.GetPullRequest(context.Background(), org, repo, sc.IssueNumber)
 		if err != nil {
 			log.WithError(err).Warn("failed to hydrate PR")
 		} else {
-			sc.PR = pr
+			sc.PR = &pullReq
 		}
 	}
 

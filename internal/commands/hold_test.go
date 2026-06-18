@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 )
@@ -89,10 +87,7 @@ func TestHold_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
 
 	// After hold is removed, GetPullRequest returns a PR with lgtm + approved → eligible.
-	ghc.PullRequests[1].Labels = []*gh.Label{
-		{Name: gh.Ptr("lgtm")},
-		{Name: gh.Ptr("approved")},
-	}
+	ghc.PullRequests[1].Labels = []string{"lgtm", "approved"}
 
 	reg := commands.Registry{"hold": commands.NewHoldHandler}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())

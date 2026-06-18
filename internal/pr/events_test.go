@@ -7,7 +7,7 @@ import (
 	gh "github.com/google/go-github/v72/github"
 
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/pr"
 )
 
@@ -30,7 +30,7 @@ func TestIsTitleWIP(t *testing.T) {
 		{"[Draft] new API", true},
 		{"Draft: work in progress", true},
 		{"Fix the bug", false},
-		{"WIPping something", false},
+		{"WIPpping something", false},
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -42,12 +42,11 @@ func TestIsTitleWIP(t *testing.T) {
 }
 
 func TestHandlePREventWIP_AddsOnWIPTitle(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	p := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Title:  gh.Ptr("[WIP] test"),
-		Draft:  gh.Ptr(false),
-		Labels: []*gh.Label{},
+	ghc := github.NewMockClient()
+	p := github.PullRequest{
+		Number: 1,
+		Title:  "[WIP] test",
+		Labels: []string{},
 	}
 
 	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
@@ -59,15 +58,14 @@ func TestHandlePREventWIP_AddsOnWIPTitle(t *testing.T) {
 }
 
 func TestHandlePREventWIP_RemovesWhenTitleClean(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/wip": true}
-	p := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Title:  gh.Ptr("Fix the bug"),
-		Draft:  gh.Ptr(false),
-		Labels: []*gh.Label{{Name: gh.Ptr("do-not-merge/wip")}},
+	p := github.PullRequest{
+		Number: 1,
+		Title:  "Fix the bug",
+		Labels: []string{"do-not-merge/wip"},
 	}
-	ghc.PullRequests[1] = p
+	ghc.PullRequests[1] = &p
 
 	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
 		t.Fatalf("HandlePREventWIP() error = %v", err)
@@ -78,12 +76,12 @@ func TestHandlePREventWIP_RemovesWhenTitleClean(t *testing.T) {
 }
 
 func TestHandlePREventWIP_DraftAddsLabel(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	p := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Title:  gh.Ptr("Normal PR"),
-		Draft:  gh.Ptr(true),
-		Labels: []*gh.Label{},
+	ghc := github.NewMockClient()
+	p := github.PullRequest{
+		Number:  1,
+		Title:   "Normal PR",
+		IsDraft: true,
+		Labels:  []string{},
 	}
 
 	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
@@ -95,11 +93,11 @@ func TestHandlePREventWIP_DraftAddsLabel(t *testing.T) {
 }
 
 func TestInvalidateLGTMOnPush(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
-	p := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Labels: []*gh.Label{{Name: gh.Ptr("lgtm")}},
+	p := github.PullRequest{
+		Number: 1,
+		Labels: []string{"lgtm"},
 	}
 	opts := &config.Options{
 		LGTM: config.LGTMOptions{InvalidateOnPush: true},
@@ -114,11 +112,11 @@ func TestInvalidateLGTMOnPush(t *testing.T) {
 }
 
 func TestInvalidateApproveOnPush(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.IssueLabels[1] = map[string]bool{"approved": true}
-	p := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Labels: []*gh.Label{{Name: gh.Ptr("approved")}},
+	p := github.PullRequest{
+		Number: 1,
+		Labels: []string{"approved"},
 	}
 	opts := &config.Options{
 		Approve: config.ApproveOptions{InvalidateOnPush: true},
@@ -133,17 +131,21 @@ func TestInvalidateApproveOnPush(t *testing.T) {
 }
 
 func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	ghc.PullRequests[1] = &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Title:  gh.Ptr("[WIP] bot PR"),
-		Draft:  gh.Ptr(false),
-		Labels: []*gh.Label{},
+	ghc := github.NewMockClient()
+	ghc.PullRequests[1] = &github.PullRequest{
+		Number: 1,
+		Title:  "[WIP] bot PR",
+		Labels: []string{},
 	}
 	evt := &gh.PullRequestEvent{
-		Action:      gh.Ptr("synchronize"),
-		Sender:      &gh.User{Login: gh.Ptr("some-bot[bot]")},
-		PullRequest: ghc.PullRequests[1],
+		Action: gh.Ptr("synchronize"),
+		Sender: &gh.User{Login: gh.Ptr("some-bot[bot]")},
+		PullRequest: &gh.PullRequest{
+			Number: gh.Ptr(1),
+			Title:  gh.Ptr("[WIP] bot PR"),
+			Draft:  gh.Ptr(false),
+			Labels: []*gh.Label{},
+		},
 	}
 	opts := &config.Options{}
 
@@ -156,17 +158,21 @@ func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
 }
 
 func TestHandlePREvent_BotLoginSkipped(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	ghc.PullRequests[1] = &gh.PullRequest{
-		Number: gh.Ptr(1),
-		Title:  gh.Ptr("Normal PR"),
-		Draft:  gh.Ptr(false),
-		Labels: []*gh.Label{},
+	ghc := github.NewMockClient()
+	ghc.PullRequests[1] = &github.PullRequest{
+		Number: 1,
+		Title:  "Normal PR",
+		Labels: []string{},
 	}
 	evt := &gh.PullRequestEvent{
-		Action:      gh.Ptr("synchronize"),
-		Sender:      &gh.User{Login: gh.Ptr("stern-bot")},
-		PullRequest: ghc.PullRequests[1],
+		Action: gh.Ptr("synchronize"),
+		Sender: &gh.User{Login: gh.Ptr("stern-bot")},
+		PullRequest: &gh.PullRequest{
+			Number: gh.Ptr(1),
+			Title:  gh.Ptr("Normal PR"),
+			Draft:  gh.Ptr(false),
+			Labels: []*gh.Label{},
+		},
 	}
 	opts := &config.Options{BotLogin: "stern-bot"}
 

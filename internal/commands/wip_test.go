@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
+	"github.com/elevran/stern/internal/github"
 )
 
 func wipOpts() *config.Options {
@@ -34,7 +33,7 @@ func TestWIP_AddsLabel(t *testing.T) {
 
 func TestWIP_RemovesLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	sc.PR.Labels = []*gh.Label{{Name: gh.Ptr("do-not-merge/wip")}}
+	sc.PR.Labels = []string{"do-not-merge/wip"}
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/wip": true}
 
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
@@ -50,19 +49,15 @@ func TestWIP_RemovesLabel(t *testing.T) {
 
 func TestWIP_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 	sc, ghc := prContext("author")
-	// sc.PR and ghc.PullRequests[1] share the same pointer from prContext.
-	// Set wip on sc.PR (so handler sees hasWIP=true), then replace ghc.PullRequests[1]
-	// with a fresh struct representing the post-cancel state.
-	sc.PR.Labels = []*gh.Label{{Name: gh.Ptr("do-not-merge/wip")}}
+	// Set wip on sc.PR so handler sees hasWIP=true.
+	sc.PR.Labels = []string{"do-not-merge/wip"}
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/wip": true}
-	ghc.PullRequests[1] = &gh.PullRequest{
-		Number: gh.Ptr(1),
-		NodeID: gh.Ptr("test-node-id"),
-		User:   &gh.User{Login: gh.Ptr("author")},
-		Labels: []*gh.Label{
-			{Name: gh.Ptr("lgtm")},
-			{Name: gh.Ptr("approved")},
-		},
+	// Replace stored PR with post-cancel state (lgtm + approved → eligible).
+	ghc.PullRequests[1] = &github.PullRequest{
+		Number: 1,
+		NodeID: "test-node-id",
+		Author: "author",
+		Labels: []string{"lgtm", "approved"},
 	}
 
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
