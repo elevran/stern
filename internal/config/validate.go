@@ -27,7 +27,7 @@ func (v ValidationIssue) Error() string {
 
 // Validate checks all options for errors and warnings.
 // Returns all issues found; does not stop at the first error.
-func (o *Options) Validate() []error {
+func (o *Options) Validate() []ValidationIssue {
 	var issues []ValidationIssue
 
 	// Unknown plugin names.
@@ -50,11 +50,7 @@ func (o *Options) Validate() []error {
 	issues = append(issues, o.Priority.validate(o.HasPlugin("priority"))...)
 	issues = append(issues, o.Size.validate(o.HasPlugin("size"))...)
 
-	errs := make([]error, len(issues))
-	for i, issue := range issues {
-		errs[i] = issue
-	}
-	return errs
+	return issues
 }
 
 func isKnownPlugin(name string) bool {

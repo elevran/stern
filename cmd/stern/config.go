@@ -104,7 +104,7 @@ func newConfigCheckCmd() *cobra.Command {
 			for _, e := range issues {
 				s := e.Error()
 				fmt.Printf("  %s\n", s)
-				if strings.HasPrefix(s, "ERROR") {
+				if e.Level == "ERROR" {
 					hasError = true
 				}
 			}
