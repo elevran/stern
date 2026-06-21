@@ -2,6 +2,8 @@ package commands
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
@@ -59,7 +61,27 @@ func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Conte
 	if !h.opts.Approve.RequireOwner {
 		return nil
 	}
-	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
-		return r.IsApprover(sc.Author)
-	}, "%s is not in the OWNERS approvers list for this PR's changed files")
+	if sc.PR.HeadSHA == "" {
+		// Fail-closed: we cannot verify OWNERS coverage without a ref to
+		// fetch the OWNERS files at. The old checkOwners path returned nil
+		// here, which silently bypassed the check when the event context
+		// was missing the head SHA. With per-file OWNERS this bypass would
+		// let non-OWNERS commenters through.
+		return fmt.Errorf("cannot verify OWNERS coverage: PR head SHA is unknown")
+	}
+	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	uncovered, err := owners.UncoveredFiles(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, sc.Author, files)
+	if err != nil {
+		return err
+	}
+	if len(uncovered) == 0 {
+		return nil
+	}
+	return PermissionError(
+		"%s does not have approval authority over all changed files. Uncovered: %s",
+		sc.Author, strings.Join(uncovered, ", "),
+	)
 }

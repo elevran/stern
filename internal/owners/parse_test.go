@@ -3,6 +3,7 @@ package owners_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -198,4 +199,130 @@ func TestLoadForPaths_MalformedYAMLDoesNotBlockOtherFiles(t *testing.T) {
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/foo.go"})
 	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML")
 	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/OWNERS to still resolve despite root OWNERS being malformed")
+}
+
+func TestUncoveredFiles_PartialOwnership(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.FileContent["dir-a/OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+	ghc.FileContent["dir-b/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir-a/f.go", "dir-b/f.go"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dir-b/f.go"}, uncovered, "alice owns dir-a but not dir-b")
+}
+
+func TestUncoveredFiles_FullOwnership(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir-a/f.go", "dir-b/f.go"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "alice owns the root OWNERS covering both directories")
+}
+
+func TestUncoveredFiles_OpenDirectory(t *testing.T) {
+	ghc := github.NewMockClient()
+	// No OWNERS files anywhere.
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"some/path/f.go"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "paths with no OWNERS chain should be covered (open directory)")
+}
+
+func TestUncoveredFiles_EmptyApproversWalksUp(t *testing.T) {
+	ghc := github.NewMockClient()
+	// dir/OWNERS lists no approvers; root OWNERS has alice.
+	// Per the new semantics, an empty-approvers level should not block
+	// and should fall through to the parent's approvers.
+	ghc.FileContent["dir/OWNERS@sha"] = []byte("# reviewers only, no approvers\n")
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir/f.go"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "directory with no approvers should fall through to parent OWNERS")
+}
+
+func TestUncoveredFiles_ApproverBlocksInheritance(t *testing.T) {
+	ghc := github.NewMockClient()
+	// dir/OWNERS lists someone else; root OWNERS lists alice.
+	// The new semantics treat dir/OWNERS as authoritative — alice is
+	// excluded from dir/f.go even though she owns the root.
+	ghc.FileContent["dir/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir/f.go"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dir/f.go"}, uncovered, "lower-level OWNERS is authoritative")
+}
+
+func TestUncoveredFiles_RejectsTraversal(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"../admin/f.go", "/etc/passwd"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "absolute/.. paths should be skipped (covered by open-directory semantics)")
+}
+
+func TestUncoveredFiles_AliasExpansion(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.FileContent["OWNERS_ALIASES@sha"] = []byte(`
+aliases:
+  team-a:
+    - alice
+    - charlie
+`)
+	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - team-a\n")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "charlie",
+		[]string{"main.go"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "charlie should be covered via team-a alias expansion")
+}
+
+// TestLoadForPaths_NonNotFoundErrorFailsClosed verifies that a non-404 error
+// from GetFileContent (e.g. transient network failure) is returned to the
+// caller instead of being treated as "no OWNERS here, keep walking up".
+// Per review #118.
+func TestLoadForPaths_NonNotFoundErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.Errors["GetFileContent"] = errors.New("connection refused")
+
+	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	require.Error(t, err, "expected LoadForPaths to return the underlying error, not swallow it")
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+// TestUncoveredFiles_NonNotFoundErrorFailsClosed is the same property for
+// UncoveredFiles.
+func TestUncoveredFiles_NonNotFoundErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.Errors["GetFileContent"] = errors.New("connection refused")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), mc, "o", "r", "sha", "alice",
+		[]string{"foo.go"})
+	require.Error(t, err, "expected UncoveredFiles to surface the underlying error")
+	assert.Nil(t, uncovered)
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+// TestLoadForPaths_AliasesLoadErrorFailsClosed verifies that a non-404 error
+// loading OWNERS_ALIASES is propagated up, rather than silently disabling
+// alias expansion.
+func TestLoadForPaths_AliasesLoadErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - team-a\n")
+	// Pre-populate OWNERS_ALIASES so the walk proceeds past it; then make
+	// OWNERS_ALIASES itself error with a non-404.
+	mc.Errors["GetFileContent"] = errors.New("rate limit hit")
+
+	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	require.Error(t, err, "expected OWNERS_ALIASES load failure to propagate")
+	assert.Contains(t, err.Error(), "rate limit hit")
 }
