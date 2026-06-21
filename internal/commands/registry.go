@@ -144,13 +144,14 @@ func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc 
 // DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
-		"ping":    newPingHandler,
-		"lgtm":    NewLGTMHandler,
-		"approve": NewApproveHandler,
-		"hold":    NewHoldHandler,
-		"wip":     NewWIPHandler,
-		"close":   newCloseHandler("close"),
-		"reopen":  newCloseHandler("reopen"),
+		"ping":      newPingHandler,
+		"lgtm":      NewLGTMHandler,
+		"approve":   NewApproveHandler,
+		"hold":      NewHoldHandler,
+		"wip":       NewWIPHandler,
+		"close":     newCloseHandler("close"),
+		"reopen":    newCloseHandler("reopen"),
+		"milestone": NewMilestoneHandler,
 	}
 }
 
