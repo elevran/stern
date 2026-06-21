@@ -11,6 +11,7 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/merge"
 )
 
 // Handler processes a single slash command.
@@ -34,6 +35,25 @@ type Registry map[string]HandlerFactory
 type nopPost struct{}
 
 func (nopPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
+
+// labelMutatingBase implements Post for handlers that mutate labels.
+// It fetches a fresh PR and re-evaluates auto-merge eligibility after every
+// successful Handle call.
+type labelMutatingBase struct {
+	mergeGHC github.PullRequestsClient
+	opts     *config.Options
+}
+
+func (b *labelMutatingBase) Post(ctx context.Context, sc *event.Context, _ []string, handleErr error) error {
+	if handleErr != nil {
+		return nil
+	}
+	pr, err := b.mergeGHC.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	return merge.CheckAndApplyAutoMerge(ctx, b.mergeGHC, pr, b.opts)
+}
 
 // ErrPermission represents a permission-denied or validation error from a handler.
 type ErrPermission struct {

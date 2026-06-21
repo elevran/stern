@@ -8,7 +8,6 @@ import (
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
-	"github.com/elevran/stern/internal/merge"
 )
 
 // holdClient is the minimum Client surface HoldHandler uses.
@@ -20,14 +19,16 @@ type holdClient interface {
 
 // HoldHandler handles /hold and /hold cancel.
 type HoldHandler struct {
-	nopPost
-	ghc  holdClient
-	opts *config.Options
+	labelMutatingBase // provides Post and opts
+	ghc               holdClient
 }
 
 // NewHoldHandler constructs a HoldHandler with all dependencies injected.
 func NewHoldHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
-	return &HoldHandler{ghc: ghc, opts: opts}
+	return &HoldHandler{
+		labelMutatingBase: labelMutatingBase{mergeGHC: ghc, opts: opts},
+		ghc:               ghc,
+	}
 }
 
 func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -51,15 +52,8 @@ func (h *HoldHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Hold); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
-		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-		if err != nil {
-			return err
-		}
-		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+		return nil
 	}
 
-	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Hold}); err != nil {
-		return err
-	}
-	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.NodeID)
+	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Hold})
 }

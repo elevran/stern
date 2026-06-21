@@ -8,7 +8,6 @@ import (
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
-	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"
 )
 
@@ -21,14 +20,16 @@ type lgtmClient interface {
 
 // LGTMHandler handles /lgtm and /lgtm cancel.
 type LGTMHandler struct {
-	nopPost
-	ghc  lgtmClient
-	opts *config.Options
+	labelMutatingBase // provides Post and opts
+	ghc               lgtmClient
 }
 
 // NewLGTMHandler constructs a LGTMHandler with all dependencies injected.
 func NewLGTMHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
-	return &LGTMHandler{ghc: ghc, opts: opts}
+	return &LGTMHandler{
+		labelMutatingBase: labelMutatingBase{mergeGHC: ghc, opts: opts},
+		ghc:               ghc,
+	}
 }
 
 func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -49,21 +50,10 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
-		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-		if err != nil {
-			return err
-		}
-		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+		return nil
 	}
 
-	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.LGTM}); err != nil {
-		return err
-	}
-	pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
-	}
-	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.LGTM})
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
