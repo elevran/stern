@@ -69,7 +69,7 @@ type UsersClient interface {
 
 // ChecksClient covers check run listing and re-run operations.
 type ChecksClient interface {
-	ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error)
+	ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error)
 	RerunCheckRun(ctx context.Context, owner, repo string, id int64) error
 }
 
@@ -360,11 +360,10 @@ func (c *realClient) ClearMilestone(ctx context.Context, owner, repo string, num
 	return err
 }
 
-// ListFailedCheckRuns lists check runs on the given ref whose conclusion
-// indicates a failure: "failure", "timed_out", "cancelled", or
-// "action_required". Skipped and successful runs are excluded.
-func (c *realClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
-	var failed []CheckRun
+// ListCheckRuns lists all check runs on the given ref, paginating through
+// every page. Callers apply their own conclusion filter (e.g. only failed).
+func (c *realClient) ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	var runs []CheckRun
 	opts := &gh.ListCheckRunsOptions{
 		ListOptions: gh.ListOptions{PerPage: 100},
 	}
@@ -374,21 +373,18 @@ func (c *realClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha s
 			return nil, err
 		}
 		for _, run := range results.CheckRuns {
-			switch run.GetConclusion() {
-			case "failure", "timed_out", "cancelled", "action_required":
-				failed = append(failed, CheckRun{
-					ID:         run.GetID(),
-					Name:       run.GetName(),
-					Conclusion: run.GetConclusion(),
-				})
-			}
+			runs = append(runs, CheckRun{
+				ID:         run.GetID(),
+				Name:       run.GetName(),
+				Conclusion: run.GetConclusion(),
+			})
 		}
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	return failed, nil
+	return runs, nil
 }
 
 // RerunCheckRun triggers GitHub to re-run a single check run.

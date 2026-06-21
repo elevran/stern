@@ -39,8 +39,8 @@ func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, re
 func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
 	return c.inner.ListMilestones(ctx, owner, repo)
 }
-func (c *dryRunClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
-	return c.inner.ListFailedCheckRuns(ctx, owner, repo, sha)
+func (c *dryRunClient) ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	return c.inner.ListCheckRuns(ctx, owner, repo, sha)
 }
 
 // Mutating methods: log and no-op.

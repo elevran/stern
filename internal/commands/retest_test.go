@@ -17,7 +17,7 @@ func TestRetest_NoFailedChecks_PostsComment(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "reviewer"
 	ghc.WriteAccess["elevran/stern/reviewer"] = true
-	// no FailedCheckRuns entry → empty list
+	// no CheckRuns entry → empty list
 
 	reg := commands.Registry{"retest": commands.NewRetestHandler}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
@@ -44,7 +44,7 @@ func TestRetest_SingleFailedCheck_RerunsIt(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "reviewer"
 	ghc.WriteAccess["elevran/stern/reviewer"] = true
-	ghc.FailedCheckRuns["elevran/stern/abc123"] = []github.CheckRun{
+	ghc.CheckRuns["elevran/stern/abc123"] = []github.CheckRun{
 		{ID: 42, Name: "ci/test", Conclusion: "failure"},
 	}
 
@@ -63,7 +63,7 @@ func TestRetest_MultipleFailedChecks_RerunsAll(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "reviewer"
 	ghc.WriteAccess["elevran/stern/reviewer"] = true
-	ghc.FailedCheckRuns["elevran/stern/abc123"] = []github.CheckRun{
+	ghc.CheckRuns["elevran/stern/abc123"] = []github.CheckRun{
 		{ID: 1, Name: "ci/test1", Conclusion: "failure"},
 		{ID: 2, Name: "ci/test2", Conclusion: "timed_out"},
 		{ID: 3, Name: "ci/test3", Conclusion: "cancelled"},
@@ -92,7 +92,7 @@ func TestRetest_NonWriter_Denied(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "reader"
 	ghc.WriteAccess["elevran/stern/reader"] = false
-	ghc.FailedCheckRuns["elevran/stern/abc123"] = []github.CheckRun{
+	ghc.CheckRuns["elevran/stern/abc123"] = []github.CheckRun{
 		{ID: 42, Name: "ci/test", Conclusion: "failure"},
 	}
 
