@@ -140,6 +140,86 @@ func TestDispatch_BuiltinIgnoresPlugins(t *testing.T) {
 	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
+func TestDispatch_SkipsFencedCodeBlock(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{}
+	sc := newSternContext()
+
+	called := false
+	reg := commands.Registry{
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+			return &spyHandler{onHandle: func() error { called = true; return nil }}
+		}},
+	}
+	body := "Look at this:\n```\n/ping\n```\nDone."
+
+	commands.Dispatch(context.Background(), sc, body, reg, ghc, opts)
+
+	assert.False(t, called, "command inside fenced block must not be dispatched")
+	assert.Empty(t, ghc.Reactions, "expected no reaction for fenced-block command")
+}
+
+func TestDispatch_SkipsBlockquoteLine(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{}
+	sc := newSternContext()
+
+	called := false
+	reg := commands.Registry{
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+			return &spyHandler{onHandle: func() error { called = true; return nil }}
+		}},
+	}
+	body := "> previously I ran /ping\n/ping"
+
+	commands.Dispatch(context.Background(), sc, body, reg, ghc, opts)
+
+	assert.True(t, called, "command on non-blockquote line should still be dispatched")
+	require.Len(t, ghc.Reactions, 1)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
+}
+
+func TestDispatch_NormalLineAfterClosedFence(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{}
+	sc := newSternContext()
+
+	called := false
+	reg := commands.Registry{
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+			return &spyHandler{onHandle: func() error { called = true; return nil }}
+		}},
+	}
+	// Open fence in one paragraph, close it in the next, then a real /ping on a fresh line.
+	body := "Example:\n```\n/ping\n```\n/ping"
+
+	commands.Dispatch(context.Background(), sc, body, reg, ghc, opts)
+
+	assert.True(t, called, "command after a closed fence should be dispatched")
+	require.Len(t, ghc.Reactions, 1)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
+}
+
+func TestDispatch_UnclosedFenceTreatedAsOpen(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{}
+	sc := newSternContext()
+
+	called := false
+	reg := commands.Registry{
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+			return &spyHandler{onHandle: func() error { called = true; return nil }}
+		}},
+	}
+	// Odd number of fence markers → remainder stays "in fence" (conservative).
+	body := "```\n/ping\nanother /ping"
+
+	commands.Dispatch(context.Background(), sc, body, reg, ghc, opts)
+
+	assert.False(t, called, "command inside unclosed fence must not be dispatched")
+	assert.Empty(t, ghc.Reactions)
+}
+
 // spyHandler records whether Handle was called.
 type spyHandler struct {
 	onHandle func() error
