@@ -247,6 +247,11 @@ func DefaultRegistry() Registry {
 			Usage:  "/lifecycle <set|clear>",
 			Config: "lifecycle.enabled",
 		}},
+		"cherry-pick": {Factory: NewCherryPickHandler, Info: CommandInfo{
+			Short:  "Cherry-pick a merged PR onto another branch",
+			Usage:  "/cherry-pick <branch>",
+			Config: "cherry_pick.allowed_branch_pattern",
+		}},
 	}
 }
 

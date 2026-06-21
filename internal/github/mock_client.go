@@ -47,8 +47,23 @@ type MockClient struct {
 	// DisableAutoMergeCallCount is the number of DisableAutoMerge invocations.
 	DisableAutoMergeCallCount int
 
+	// CreatedPRs records PRs returned by CreatePullRequest, keyed by the
+	// auto-generated PR number.
+	CreatedPRs map[int]PullRequest
+	// CreatedPRMeta records the title/head/base/body arguments of every
+	// CreatePullRequest call so tests can assert on the PR metadata.
+	CreatedPRMeta []CreatedPRMeta
+
 	// Return errors for specific method names.
 	Errors map[string]error
+}
+
+type CreatedPRMeta struct {
+	Number int
+	Title  string
+	Head   string
+	Base   string
+	Body   string
 }
 
 type ReactionRecord struct {
@@ -85,6 +100,7 @@ func NewMockClient() *MockClient {
 		IssueMilestone: make(map[int]int),
 		Assignees:      make(map[int][]string),
 		ReviewRequests: make(map[int][]string),
+		CreatedPRs:     make(map[int]PullRequest),
 		Errors:         make(map[string]error),
 	}
 }
@@ -370,4 +386,28 @@ func (m *MockClient) ListOpenItems(_ context.Context, _, _ string) ([]Item, erro
 		return nil, err
 	}
 	return m.Items, nil
+}
+
+// CreatePullRequest records a fake PR creation. The returned PR number is
+// one greater than the highest existing PR number in m.PullRequests (or
+// the next free number in m.CreatedPRs) so tests can assert on it.
+func (m *MockClient) CreatePullRequest(_ context.Context, _, _, title, head, base, body string) (int, error) {
+	if err := m.err("CreatePullRequest"); err != nil {
+		return 0, err
+	}
+	next := len(m.CreatedPRs) + 100 // 100+ to avoid collision with hand-set PR numbers like 1
+	m.CreatedPRs[next] = PullRequest{
+		Number:  next,
+		Title:   title,
+		HeadSHA: "fake-head-sha",
+		Labels:  []string{},
+	}
+	m.CreatedPRMeta = append(m.CreatedPRMeta, CreatedPRMeta{
+		Number: next,
+		Title:  title,
+		Head:   head,
+		Base:   base,
+		Body:   body,
+	})
+	return next, nil
 }
