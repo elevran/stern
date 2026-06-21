@@ -133,7 +133,7 @@ func TestSweep_PRSpecificOverride(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.Items = []github.Item{
 		{Number: 1, UpdatedAt: daysBefore(30), IsPR: true}, // hits PR override (30)
-		{Number: 2, UpdatedAt: daysBefore(30)},              // issue: 30 < global 90, no action
+		{Number: 2, UpdatedAt: daysBefore(30)},             // issue: 30 < global 90, no action
 	}
 	opts := baseOpts()
 	opts.Lifecycle.PullRequests = config.LifecycleItemOptions{StaleDays: 30}
