@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -30,7 +29,7 @@ func runSlashCommand(_ *cobra.Command, _ []string) error {
 	if evt.Comment != nil && evt.Comment.User != nil {
 		author = evt.Comment.User.GetLogin()
 	}
-	if strings.HasSuffix(author, "[bot]") || author == globalOpts.BotLogin {
+	if event.IsBot(author, globalOpts.BotLogin) {
 		log.WithField("author", author).Info("skipping: comment from bot")
 		return nil
 	}

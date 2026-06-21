@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+// IsBot reports whether sender should be treated as a bot and its events
+// skipped. Matches accounts ending in "[bot]" (GitHub Apps) or the configured
+// bot login.
+func IsBot(sender, botLogin string) bool {
+	return strings.HasSuffix(sender, "[bot]") || sender == botLogin
+}
+
 // ParseCommentEvent parses GITHUB_EVENT_PATH as an IssueCommentEvent.
 func ParseCommentEvent() (*CommentEvent, error) {
 	return parseEvent[CommentEvent]()
