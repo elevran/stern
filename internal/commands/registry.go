@@ -91,7 +91,7 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 			continue
 		}
 
-		if !builtinVerbs[verb] && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
+		if !builtinVerbs[verb] && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
 			log.WithField("command", "/"+verb).Info("plugin not enabled")
 			continue
 		}
