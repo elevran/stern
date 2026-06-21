@@ -21,7 +21,7 @@ func TestRetest_NoFailedChecks_PostsComment(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/reviewer"] = true
 	// no CheckRuns entry → empty list
 
-	reg := commands.Registry{"retest": commands.NewRetestHandler}
+	reg := commands.Registry{"retest": {Factory: commands.NewRetestHandler}}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	assert.Empty(t, ghc.RerunCheckRuns, "expected no RerunCheckRun calls")
@@ -45,7 +45,7 @@ func TestRetest_SingleFailedCheck_RerunsIt(t *testing.T) {
 		{ID: 42, Name: "ci/test", Conclusion: "failure"},
 	}
 
-	reg := commands.Registry{"retest": commands.NewRetestHandler}
+	reg := commands.Registry{"retest": {Factory: commands.NewRetestHandler}}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	require.Len(t, ghc.RerunCheckRuns, 1)
@@ -65,7 +65,7 @@ func TestRetest_MultipleFailedChecks_RerunsAll(t *testing.T) {
 		{ID: 4, Name: "ci/test4", Conclusion: "action_required"},
 	}
 
-	reg := commands.Registry{"retest": commands.NewRetestHandler}
+	reg := commands.Registry{"retest": {Factory: commands.NewRetestHandler}}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	require.Len(t, ghc.RerunCheckRuns, 4)
@@ -85,7 +85,7 @@ func TestRetest_NonWriter_Denied(t *testing.T) {
 		{ID: 42, Name: "ci/test", Conclusion: "failure"},
 	}
 
-	reg := commands.Registry{"retest": commands.NewRetestHandler}
+	reg := commands.Registry{"retest": {Factory: commands.NewRetestHandler}}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	assert.Empty(t, ghc.RerunCheckRuns, "expected no RerunCheckRun calls for non-writer")
@@ -97,7 +97,7 @@ func TestRetest_NotOnPR_Denied(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"retest": commands.NewRetestHandler}
+	reg := commands.Registry{"retest": {Factory: commands.NewRetestHandler}}
 	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	assert.Empty(t, ghc.RerunCheckRuns, "expected no RerunCheckRun calls on non-PR")

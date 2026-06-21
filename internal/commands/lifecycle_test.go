@@ -43,7 +43,7 @@ func lifecycleContext() (*event.Context, *github.MockClient) {
 
 func TestLifecycle_Stale_NoExistingLabels(t *testing.T) {
 	sc, ghc := lifecycleContext()
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle stale", reg, ghc, lifecycleOpts(true))
 
 	assert.True(t, ghc.IssueLabels[42]["lifecycle/stale"], "expected lifecycle/stale added")
@@ -57,7 +57,7 @@ func TestLifecycle_Frozen_RemovesStale(t *testing.T) {
 	sc, ghc := lifecycleContext()
 	ghc.IssueLabels[42] = map[string]bool{"lifecycle/stale": true}
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle frozen", reg, ghc, lifecycleOpts(true))
 
 	assert.False(t, ghc.IssueLabels[42]["lifecycle/stale"], "expected lifecycle/stale removed")
@@ -73,7 +73,7 @@ func TestLifecycle_Rotten_RemovesStaleAndFrozen(t *testing.T) {
 		"lifecycle/frozen": true,
 	}
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle rotten", reg, ghc, lifecycleOpts(true))
 
 	assert.False(t, ghc.IssueLabels[42]["lifecycle/stale"])
@@ -89,7 +89,7 @@ func TestLifecycle_Active_RemovesAll(t *testing.T) {
 		"lifecycle/frozen": true,
 	}
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle active", reg, ghc, lifecycleOpts(true))
 
 	assert.False(t, ghc.IssueLabels[42]["lifecycle/stale"])
@@ -107,7 +107,7 @@ func TestLifecycle_Active_NoLabels_NoError(t *testing.T) {
 		Response: &http.Response{StatusCode: http.StatusNotFound},
 	}
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle active", reg, ghc, lifecycleOpts(true))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -116,7 +116,7 @@ func TestLifecycle_Active_NoLabels_NoError(t *testing.T) {
 
 func TestLifecycle_NoArgs(t *testing.T) {
 	sc, ghc := lifecycleContext()
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle", reg, ghc, lifecycleOpts(true))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -127,7 +127,7 @@ func TestLifecycle_NoArgs(t *testing.T) {
 
 func TestLifecycle_UnknownSubcommand(t *testing.T) {
 	sc, ghc := lifecycleContext()
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle bogus", reg, ghc, lifecycleOpts(true))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -142,7 +142,7 @@ func TestLifecycle_NotEnabled(t *testing.T) {
 	// Plugin is in opts.Plugins (Dispatch lets it through), but
 	// Lifecycle.Enabled is false, so Pre returns a PermissionError.
 	sc, ghc := lifecycleContext()
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle stale", reg, ghc, lifecycleOpts(false))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -157,7 +157,7 @@ func TestLifecycle_UnknownSubcommand_PreFailsBeforeHandle(t *testing.T) {
 	sc, ghc := lifecycleContext()
 	ghc.Errors["AddLabels"] = errors.New("Handle should not run")
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle bogus", reg, ghc, lifecycleOpts(true))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -169,7 +169,7 @@ func TestLifecycle_RemoveLabel_NonNotFoundError_PropagatesAsInternal(t *testing.
 	sc, ghc := lifecycleContext()
 	ghc.Errors["RemoveLabel"] = errors.New("boom")
 
-	reg := commands.Registry{"lifecycle": commands.NewLifecycleHandler}
+	reg := commands.Registry{"lifecycle": {Factory: commands.NewLifecycleHandler}}
 	commands.Dispatch(context.Background(), sc, "/lifecycle stale", reg, ghc, lifecycleOpts(true))
 
 	require.NotEmpty(t, ghc.Reactions)

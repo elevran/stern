@@ -23,7 +23,7 @@ func TestMilestone_SetByID(t *testing.T) {
 	sc.Author = "maintainer"
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone 7", reg, ghc, milestoneOpts())
 
 	require.Len(t, ghc.MilestoneSet, 1)
@@ -40,7 +40,7 @@ func TestMilestone_SetByTitle_Exact(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.Milestones[5] = github.Milestone{Number: 5, Title: "v1.0"}
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone v1.0", reg, ghc, milestoneOpts())
 
 	require.Len(t, ghc.MilestoneSet, 1)
@@ -53,7 +53,7 @@ func TestMilestone_SetByTitle_CaseInsensitive(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.Milestones[5] = github.Milestone{Number: 5, Title: "v1.0"}
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone V1.0", reg, ghc, milestoneOpts())
 
 	require.Len(t, ghc.MilestoneSet, 1)
@@ -66,7 +66,7 @@ func TestMilestone_Clear(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.IssueMilestone[1] = 5
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone clear", reg, ghc, milestoneOpts())
 
 	require.Len(t, ghc.MilestoneCleared, 1)
@@ -83,7 +83,7 @@ func TestMilestone_Clear_CaseInsensitive(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.IssueMilestone[1] = 5
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone CLEAR", reg, ghc, milestoneOpts())
 
 	assert.Len(t, ghc.MilestoneCleared, 1)
@@ -95,7 +95,7 @@ func TestMilestone_TitleNotFound(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.Milestones[5] = github.Milestone{Number: 5, Title: "v1.0"}
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone v2.0", reg, ghc, milestoneOpts())
 
 	assert.Empty(t, ghc.MilestoneSet, "expected no SetMilestone call for unknown title")
@@ -115,7 +115,7 @@ func TestMilestone_MissingArg(t *testing.T) {
 	sc.Author = "maintainer"
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone", reg, ghc, milestoneOpts())
 
 	assert.Empty(t, ghc.MilestoneSet, "expected no mutation when arg missing")
@@ -129,7 +129,7 @@ func TestMilestone_RequiresWriteAccess(t *testing.T) {
 	sc.Author = "outsider"
 	ghc.WriteAccess["elevran/stern/outsider"] = false
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone 7", reg, ghc, milestoneOpts())
 
 	assert.Empty(t, ghc.MilestoneSet, "expected no SetMilestone without write access")
@@ -149,7 +149,7 @@ func TestMilestone_WorksOnIssue(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 
-	reg := commands.Registry{"milestone": commands.NewMilestoneHandler}
+	reg := commands.Registry{"milestone": {Factory: commands.NewMilestoneHandler}}
 	commands.Dispatch(context.Background(), sc, "/milestone 3", reg, ghc, milestoneOpts())
 
 	require.Len(t, ghc.MilestoneSet, 1)

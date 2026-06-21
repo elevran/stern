@@ -22,7 +22,7 @@ func holdOpts() *config.Options {
 
 func TestHold_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected hold label to be added")
@@ -35,7 +35,7 @@ func TestHold_AnyOrgMemberCanHold(t *testing.T) {
 	sc.Author = "contributor" // non-write user
 	ghc.WriteAccess["elevran/stern/contributor"] = false
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected any org member to be able to hold")
@@ -49,7 +49,7 @@ func TestHold_Cancel_RequiresWriteAccess(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/reader"] = false
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected hold label NOT removed without write access")
@@ -63,7 +63,7 @@ func TestHold_Cancel_WithWriteAccess(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/maintainer"] = true
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/hold": true}
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected hold label removed for writer")
@@ -80,7 +80,7 @@ func TestHold_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 	// After hold is removed, GetPullRequest returns a PR with lgtm + approved → eligible.
 	ghc.PullRequests[1].Labels = []string{"lgtm", "approved"}
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold cancel", reg, ghc, holdOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected hold label removed")
@@ -90,7 +90,7 @@ func TestHold_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 
 func TestHold_AddsLabel_DisablesAutoMerge(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	assert.NotEmpty(t, ghc.AutoMergeDisabled, "expected DisableAutoMerge called when hold label added")
@@ -100,7 +100,7 @@ func TestHold_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -111,7 +111,7 @@ func TestHold_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"hold": commands.NewHoldHandler}
+	reg := commands.Registry{"hold": {Factory: commands.NewHoldHandler}}
 	commands.Dispatch(context.Background(), sc, "/hold", reg, ghc, holdOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")

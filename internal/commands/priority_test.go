@@ -21,7 +21,7 @@ func priorityOpts() *config.Options {
 
 func TestPriority_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 label to be added")
@@ -35,7 +35,7 @@ func TestPriority_MutuallyExclusive(t *testing.T) {
 	sc.PR.Labels = []string{"priority/P0"}
 	ghc.IssueLabels[1] = map[string]bool{"priority/P0": true}
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P1", reg, ghc, priorityOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected existing priority/P0 label to be removed (mutual exclusion)")
@@ -52,7 +52,7 @@ func TestPriority_RemovesAllPriorityLabels(t *testing.T) {
 		"area/api":    true,
 	}
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P2", reg, ghc, priorityOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 to be removed")
@@ -70,7 +70,7 @@ func TestPriority_Cancel_RemovesAll(t *testing.T) {
 		"priority/P1": true,
 	}
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority cancel", reg, ghc, priorityOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 removed on cancel")
@@ -84,7 +84,7 @@ func TestPriority_NoArg_RemovesAll(t *testing.T) {
 	sc.PR.Labels = []string{"priority/P0"}
 	ghc.IssueLabels[1] = map[string]bool{"priority/P0": true}
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority", reg, ghc, priorityOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 removed on /priority with no arg")
@@ -92,7 +92,7 @@ func TestPriority_NoArg_RemovesAll(t *testing.T) {
 
 func TestPriority_InvalidValue(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P9", reg, ghc, priorityOpts())
 
 	assert.Empty(t, ghc.IssueLabels[1], "expected no labels added for invalid priority")
@@ -104,7 +104,7 @@ func TestPriority_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -115,7 +115,7 @@ func TestPriority_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"priority": commands.NewPriorityHandler}
+	reg := commands.Registry{"priority": {Factory: commands.NewPriorityHandler}}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
