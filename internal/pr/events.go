@@ -31,13 +31,13 @@ type prClient interface {
 // resolved config so individual sub-handlers can be invoked with narrow
 // signatures.
 type PREventHandler struct {
-	ghc  github.Client
+	ghc  prClient
 	opts *config.Options
 }
 
 // NewPREventHandler constructs a handler bound to the given GitHub client
 // and resolved configuration.
-func NewPREventHandler(ghc github.Client, opts *config.Options) *PREventHandler {
+func NewPREventHandler(ghc prClient, opts *config.Options) *PREventHandler {
 	return &PREventHandler{ghc: ghc, opts: opts}
 }
 
@@ -175,53 +175,19 @@ func HandlePREvent(ctx context.Context, ghc github.Client, org, repo string, evt
 //
 // Deprecated: call (*PREventHandler).handleWIP via a PREventHandler instead.
 func HandlePREventWIP(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	shouldHaveWIP := IsTitleWIP(p.Title) || p.IsDraft
-	currentWIP := slices.ContainsFunc(p.Labels, func(l string) bool { return strings.EqualFold(l, labels.WIP) })
-	number := p.Number
-
-	if shouldHaveWIP && !currentWIP {
-		if err := ghc.AddLabels(ctx, org, repo, number, []string{labels.WIP}); err != nil {
-			return err
-		}
-		return merge.DisableAutoMerge(ctx, ghc, p.NodeID)
-	}
-
-	if !shouldHaveWIP && currentWIP {
-		if err := ghc.RemoveLabel(ctx, org, repo, number, labels.WIP); err != nil && !github.IsNotFoundError(err) {
-			return err
-		}
-		freshPR, err := ghc.GetPullRequest(ctx, org, repo, number)
-		if err != nil {
-			return err
-		}
-		return merge.CheckAndApplyAutoMerge(ctx, ghc, freshPR, opts)
-	}
-
-	return nil
+	return NewPREventHandler(ghc, opts).handleWIP(ctx, org, repo, p)
 }
 
 // InvalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
 //
 // Deprecated: call (*PREventHandler).invalidateLGTMOnPush via a PREventHandler instead.
 func InvalidateLGTMOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	if !opts.LGTM.InvalidateOnPush {
-		return nil
-	}
-	if err := ghc.RemoveLabel(ctx, org, repo, p.Number, labels.LGTM); err != nil && !github.IsNotFoundError(err) {
-		return err
-	}
-	return merge.DisableAutoMerge(ctx, ghc, p.NodeID)
+	return NewPREventHandler(ghc, opts).invalidateLGTMOnPush(ctx, org, repo, p)
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
 //
 // Deprecated: call (*PREventHandler).invalidateApproveOnPush via a PREventHandler instead.
 func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	if !opts.Approve.InvalidateOnPush {
-		return nil
-	}
-	if err := ghc.RemoveLabel(ctx, org, repo, p.Number, labels.Approved); err != nil && !github.IsNotFoundError(err) {
-		return err
-	}
-	return merge.DisableAutoMerge(ctx, ghc, p.NodeID)
+	return NewPREventHandler(ghc, opts).invalidateApproveOnPush(ctx, org, repo, p)
 }
