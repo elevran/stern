@@ -12,10 +12,17 @@ import (
 	"github.com/elevran/stern/internal/owners"
 )
 
+// lgtmClient is the minimum Client surface LGTMHandler uses.
+type lgtmClient interface {
+	github.LabelsClient
+	github.PullRequestsClient
+	github.ContentClient
+}
+
 // LGTMHandler handles /lgtm and /lgtm cancel.
 type LGTMHandler struct {
 	nopPost
-	ghc  github.Client
+	ghc  lgtmClient
 	opts *config.Options
 }
 

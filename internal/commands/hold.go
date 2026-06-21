@@ -11,10 +11,17 @@ import (
 	"github.com/elevran/stern/internal/merge"
 )
 
+// holdClient is the minimum Client surface HoldHandler uses.
+type holdClient interface {
+	github.PermissionsClient
+	github.LabelsClient
+	github.PullRequestsClient
+}
+
 // HoldHandler handles /hold and /hold cancel.
 type HoldHandler struct {
 	nopPost
-	ghc  github.Client
+	ghc  holdClient
 	opts *config.Options
 }
 

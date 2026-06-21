@@ -32,7 +32,7 @@ type ResolvedOwners struct {
 // root, collecting approvers and reviewers. Duplicate logins are deduplicated.
 // If no OWNERS files are found, it returns empty slices (caller should treat
 // this as "any org member may approve/review").
-func LoadForPaths(ctx context.Context, ghc github.Client, owner, repo, ref string, changedPaths []string) (*ResolvedOwners, error) {
+func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, ref string, changedPaths []string) (*ResolvedOwners, error) {
 	aliases, _ := loadAliases(ctx, ghc, owner, repo, ref)
 
 	approverSet := make(map[string]bool)
@@ -127,7 +127,7 @@ func ownersFilePath(dir string) string {
 
 // loadAliases fetches and parses the root OWNERS_ALIASES file.
 // Returns an empty Aliases and no error if the file doesn't exist.
-func loadAliases(ctx context.Context, ghc github.Client, owner, repo, ref string) (*Aliases, error) {
+func loadAliases(ctx context.Context, ghc github.ContentClient, owner, repo, ref string) (*Aliases, error) {
 	data, err := ghc.GetFileContent(ctx, owner, repo, "OWNERS_ALIASES", ref)
 	if err != nil {
 		return &Aliases{Aliases: make(map[string][]string)}, nil

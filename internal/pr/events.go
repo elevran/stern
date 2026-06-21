@@ -14,8 +14,14 @@ import (
 	"github.com/elevran/stern/internal/merge"
 )
 
+// prClient is the minimum Client surface the PR event handlers use.
+type prClient interface {
+	github.LabelsClient
+	github.PullRequestsClient
+}
+
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
-func HandlePREvent(ctx context.Context, ghc github.Client, org, repo string, evt *event.PREvent, opts *config.Options) error {
+func HandlePREvent(ctx context.Context, ghc prClient, org, repo string, evt *event.PREvent, opts *config.Options) error {
 	action := evt.GetAction()
 
 	log := logrus.WithFields(logrus.Fields{
@@ -77,7 +83,7 @@ func IsTitleWIP(title string) bool {
 }
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
-func HandlePREventWIP(ctx context.Context, ghc github.Client, org, repo string, p github.PullRequest, opts *config.Options) error {
+func HandlePREventWIP(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	shouldHaveWIP := IsTitleWIP(p.Title) || p.IsDraft
 	currentWIP := slices.ContainsFunc(p.Labels, func(l string) bool { return strings.EqualFold(l, labels.WIP) })
 	number := p.Number
@@ -104,7 +110,7 @@ func HandlePREventWIP(ctx context.Context, ghc github.Client, org, repo string, 
 }
 
 // InvalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
-func InvalidateLGTMOnPush(ctx context.Context, ghc github.Client, org, repo string, p github.PullRequest, opts *config.Options) error {
+func InvalidateLGTMOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	if !opts.LGTM.InvalidateOnPush {
 		return nil
 	}
@@ -115,7 +121,7 @@ func InvalidateLGTMOnPush(ctx context.Context, ghc github.Client, org, repo stri
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
-func InvalidateApproveOnPush(ctx context.Context, ghc github.Client, org, repo string, p github.PullRequest, opts *config.Options) error {
+func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	if !opts.Approve.InvalidateOnPush {
 		return nil
 	}

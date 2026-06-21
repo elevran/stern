@@ -11,34 +11,48 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Client abstracts GitHub API operations used by stern.
-type Client interface {
-	// Label management
+// LabelsClient covers label CRUD and label assignment operations.
+type LabelsClient interface {
 	ListRepoLabels(ctx context.Context, owner, repo string) ([]Label, error)
 	CreateLabel(ctx context.Context, owner, repo string, label Label) error
 	UpdateLabel(ctx context.Context, owner, repo, name string, label Label) error
 	DeleteLabel(ctx context.Context, owner, repo, name string) error
 	AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error
 	RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error
+}
 
-	// Pull requests
+// PullRequestsClient covers pull request reads and auto-merge mutations.
+type PullRequestsClient interface {
 	GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error)
 	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]string, error)
-
-	// Reactions and comments
-	CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error
-	CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error
-
-	// Permissions
-	IsOrgMember(ctx context.Context, org, user string) (bool, error)
-	HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error)
-
-	// Auto-merge — uses GraphQL; nodeID is the PR's global node_id.
 	EnableAutoMerge(ctx context.Context, nodeID string, method string) error
 	DisableAutoMerge(ctx context.Context, nodeID string) error
+}
 
-	// File content (for OWNERS parsing)
+// CommentsClient covers comment and reaction creation.
+type CommentsClient interface {
+	CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error
+	CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error
+}
+
+// PermissionsClient covers membership and access level checks.
+type PermissionsClient interface {
+	IsOrgMember(ctx context.Context, org, user string) (bool, error)
+	HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error)
+}
+
+// ContentClient covers reading file contents from a repository.
+type ContentClient interface {
 	GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error)
+}
+
+// Client is the full composed interface used by production code.
+type Client interface {
+	LabelsClient
+	PullRequestsClient
+	CommentsClient
+	PermissionsClient
+	ContentClient
 }
 
 type realClient struct {
