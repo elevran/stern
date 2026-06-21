@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/owners"
 )
 
 func newSlashCommandCmd() *cobra.Command {
@@ -30,6 +32,23 @@ func newSlashCommandCmd() *cobra.Command {
 // follow-up calls (PR hydration, dispatch mutations). It is injected so
 // tests can pass a mock client.
 func runSlashCommand(ghc github.Client) error {
+	// OWNERS cache: when OWNERS_CACHE_FILE is set, install it as the
+	// process-wide ambient cache and persist it on exit so the next
+	// workflow run benefits from the warm state.
+	if p := os.Getenv("OWNERS_CACHE_FILE"); p != "" {
+		cache, err := owners.LoadCacheFile(p)
+		if err != nil {
+			log.WithError(err).WithField("path", p).Warn("loading owners cache; continuing without cache")
+		} else {
+			owners.SetAmbientCache(cache)
+			defer func() {
+				if err := cache.Save(); err != nil {
+					log.WithError(err).WithField("path", p).Warn("saving owners cache")
+				}
+			}()
+		}
+	}
+
 	evt, err := event.ParseCommentEvent()
 	if err != nil {
 		return fmt.Errorf("parsing event: %w", err)

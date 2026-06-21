@@ -66,9 +66,16 @@ jobs:
 
       - run: chmod +x stern
 
+      - name: Restore OWNERS cache
+        uses: actions/cache@v4
+        with:
+          path: .owners-cache.json
+          key: owners-${{ hashFiles('**/OWNERS', '**/OWNERS_ALIASES') }}
+
       - name: Run slash-command
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNERS_CACHE_FILE: .owners-cache.json
         run: ./stern slash-command --config .github/stern.yaml
 
   pr-event:
@@ -91,9 +98,16 @@ jobs:
 
       - run: chmod +x stern
 
+      - name: Restore OWNERS cache
+        uses: actions/cache@v4
+        with:
+          path: .owners-cache.json
+          key: owners-${{ hashFiles('**/OWNERS', '**/OWNERS_ALIASES') }}
+
       - name: Run pr-event
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNERS_CACHE_FILE: .owners-cache.json
         run: ./stern pr-event --config .github/stern.yaml
 
   issue-event:

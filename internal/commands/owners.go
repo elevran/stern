@@ -30,7 +30,7 @@ func checkOwners(
 	if err != nil {
 		return err
 	}
-	resolved, err := owners.LoadForPaths(ctx, ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
+	resolved, err := owners.LoadForPaths(ctx, ghc, nil, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ import (
 
 func TestLoadForPaths_NoOwners(t *testing.T) {
 	ghc := github.NewMockClient() // no files loaded
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"pkg/foo.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "abc123", []string{"pkg/foo.go"})
 	require.NoError(t, err)
 	assert.False(t, result.HasOwners(), "expected no owners when no OWNERS files exist")
 }
@@ -31,7 +31,7 @@ approvers:
 reviewers:
   - charlie
 `)
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"README.md"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "abc123", []string{"README.md"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "expected alice to be an approver")
 	assert.True(t, result.IsApprover("bob"), "expected bob to be an approver")
@@ -44,7 +44,7 @@ func TestLoadForPaths_DirectoryOwners(t *testing.T) {
 approvers:
   - alice
 `)
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"pkg/foo.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "abc123", []string{"pkg/foo.go"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "expected alice to be an approver via pkg/OWNERS")
 }
@@ -56,7 +56,7 @@ func TestLoadForPaths_WalksHierarchy(t *testing.T) {
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
 	ghc.FileContent["pkg/sub/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/sub/bar.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"pkg/sub/bar.go"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "expected alice from root OWNERS")
 	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/sub/OWNERS")
@@ -72,7 +72,7 @@ aliases:
 `)
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - team-eng\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"main.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"main.go"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "expected alice via alias expansion")
 	assert.True(t, result.IsApprover("bob"), "expected bob via alias expansion")
@@ -82,7 +82,7 @@ func TestLoadForPaths_CaseInsensitive(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - Alice\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"foo.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"foo.go"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "IsApprover should be case-insensitive")
 	assert.True(t, result.IsApprover("ALICE"), "IsApprover should be case-insensitive")
@@ -94,7 +94,7 @@ func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
 	ghc.FileContent["../../admin/OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha",
 		[]string{"../../admin/foo.go", "../secret.go"})
 	require.NoError(t, err)
 	assert.False(t, result.HasOwners(), "expected path traversal paths to be rejected, got owners")
@@ -104,7 +104,7 @@ func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - attacker\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha",
 		[]string{"/etc/passwd"})
 	require.NoError(t, err)
 	assert.False(t, result.HasOwners(), "expected absolute path to be rejected")
@@ -114,7 +114,7 @@ func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - alice\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha",
 		[]string{"pkg/foo.go", "internal/bar/baz.go"})
 	require.NoError(t, err)
 	assert.True(t, result.IsApprover("alice"), "expected alice from root OWNERS for normal paths")
@@ -138,7 +138,7 @@ reviewers:
   - bob
 `)
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"main.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"main.go"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"alice", "mike", "zoe"}, result.Approvers, "Approvers should be sorted ascending")
 	assert.Equal(t, []string{"bob", "yara"}, result.Reviewers, "Reviewers should be sorted ascending")
@@ -177,7 +177,7 @@ func TestLoadForPaths_MalformedYAMLLogsWarning(t *testing.T) {
 	var result *owners.ResolvedOwners
 	var err error
 	out = captureLogger(func() {
-		result, err = owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/foo.go"})
+		result, err = owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"pkg/foo.go"})
 	})
 	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML (warning, not error)")
 	assert.Contains(t, out, "level=warning", "expected warning level in log output")
@@ -196,7 +196,7 @@ func TestLoadForPaths_MalformedYAMLDoesNotBlockOtherFiles(t *testing.T) {
 	ghc.FileContent["OWNERS@sha"] = []byte(": : : not yaml : :\n")
 	ghc.FileContent["pkg/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
 
-	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/foo.go"})
+	result, err := owners.LoadForPaths(context.Background(), ghc, nil, "o", "r", "sha", []string{"pkg/foo.go"})
 	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML")
 	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/OWNERS to still resolve despite root OWNERS being malformed")
 }
@@ -294,7 +294,7 @@ func TestLoadForPaths_NonNotFoundErrorFailsClosed(t *testing.T) {
 	mc := github.NewMockClient()
 	mc.Errors["GetFileContent"] = errors.New("connection refused")
 
-	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	_, err := owners.LoadForPaths(context.Background(), mc, nil, "o", "r", "sha", []string{"foo.go"})
 	require.Error(t, err, "expected LoadForPaths to return the underlying error, not swallow it")
 	assert.Contains(t, err.Error(), "connection refused")
 }
@@ -322,7 +322,7 @@ func TestLoadForPaths_AliasesLoadErrorFailsClosed(t *testing.T) {
 	// OWNERS_ALIASES itself error with a non-404.
 	mc.Errors["GetFileContent"] = errors.New("rate limit hit")
 
-	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	_, err := owners.LoadForPaths(context.Background(), mc, nil, "o", "r", "sha", []string{"foo.go"})
 	require.Error(t, err, "expected OWNERS_ALIASES load failure to propagate")
 	assert.Contains(t, err.Error(), "rate limit hit")
 }

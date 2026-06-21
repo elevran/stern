@@ -41,8 +41,13 @@ type ResolvedOwners struct {
 // is returned to the caller — fail-closed rather than treating the transient
 // error as "no OWNERS here, keep walking up", which would silently widen
 // approval authority.
-func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, ref string, changedPaths []string) (*ResolvedOwners, error) {
-	aliases, err := loadAliases(ctx, ghc, owner, repo, ref)
+//
+// cache may be nil — when nil, the function falls through to the live API on
+// every call. When a process-wide ambient cache has been installed via
+// SetAmbientCache, that cache is consulted instead.
+func LoadForPaths(ctx context.Context, ghc github.ContentClient, cache *FileCache, owner, repo, ref string, changedPaths []string) (*ResolvedOwners, error) {
+	cache = effectiveCache(cache)
+	aliases, err := loadAliases(ctx, ghc, cache, owner, repo, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +63,7 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 		dirs := ancestorDirs(clean)
 		for _, dir := range dirs {
 			ownersPath := ownersFilePath(dir)
-			data, err := ghc.GetFileContent(ctx, owner, repo, ownersPath, ref)
+			data, err := cachedGetFileContent(ctx, ghc, cache, owner, repo, ownersPath, ref)
 			if err != nil {
 				if !github.IsNotFoundError(err) {
 					return nil, fmt.Errorf("loading %s@%s: %w", ownersPath, ref, err)
@@ -87,6 +92,21 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 		Approvers: slices.Sorted(maps.Keys(approverSet)),
 		Reviewers: slices.Sorted(maps.Keys(reviewerSet)),
 	}, nil
+}
+
+// cachedGetFileContent returns the cached content for the given key when
+// present, otherwise falls through to the live API and stores the result.
+// A nil cache is a no-op wrapper — FileCache.get/set are nil-safe.
+func cachedGetFileContent(ctx context.Context, ghc github.ContentClient, cache *FileCache, owner, repo, filePath, ref string) ([]byte, error) {
+	if data, ok := cache.get(cacheKey(owner, repo, ref, filePath)); ok {
+		return data, nil
+	}
+	data, err := ghc.GetFileContent(ctx, owner, repo, filePath, ref)
+	if err != nil {
+		return nil, err
+	}
+	cache.set(cacheKey(owner, repo, ref, filePath), data)
+	return data, nil
 }
 
 // IsApprover reports whether login is in the approvers set.
@@ -126,7 +146,7 @@ func UncoveredFiles(
 	owner, repo, ref, login string,
 	changedPaths []string,
 ) ([]string, error) {
-	aliases, err := loadAliases(ctx, ghc, owner, repo, ref)
+	aliases, err := loadAliases(ctx, ghc, nil, owner, repo, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -213,8 +233,9 @@ func ownersFilePath(dir string) string {
 // Returns an empty Aliases and no error if the file doesn't exist.
 // A non-404 error is returned to the caller so transient API failures
 // don't silently disable alias expansion.
-func loadAliases(ctx context.Context, ghc github.ContentClient, owner, repo, ref string) (*Aliases, error) {
-	data, err := ghc.GetFileContent(ctx, owner, repo, "OWNERS_ALIASES", ref)
+func loadAliases(ctx context.Context, ghc github.ContentClient, cache *FileCache, owner, repo, ref string) (*Aliases, error) {
+	cache = effectiveCache(cache)
+	data, err := cachedGetFileContent(ctx, ghc, cache, owner, repo, "OWNERS_ALIASES", ref)
 	if err != nil {
 		if github.IsNotFoundError(err) {
 			return &Aliases{Aliases: make(map[string][]string)}, nil
