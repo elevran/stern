@@ -157,6 +157,7 @@ func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc 
 // DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
+<<<<<<< HEAD
 		"ping": {Factory: newPingHandler, Info: CommandInfo{
 			Short: "Check that the bot is alive",
 			Usage: "/ping",
@@ -231,6 +232,11 @@ func DefaultRegistry() Registry {
 			Short:  "Manage stale/rotten lifecycle labels on issues and PRs",
 			Usage:  "/lifecycle <set|clear>",
 			Config: "lifecycle.enabled",
+		}},
+		"cherry-pick": {Factory: NewCherryPickHandler, Info: CommandInfo{
+			Short:  "Cherry-pick a merged PR onto another branch",
+			Usage:  "/cherry-pick <branch>",
+			Config: "cherry_pick.allowed_branch_pattern",
 		}},
 	}
 }

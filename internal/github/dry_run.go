@@ -119,3 +119,9 @@ func (c *dryRunClient) RerunCheckRun(_ context.Context, owner, repo string, id i
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "id": id}).Info("[dry-run] RerunCheckRun")
 	return nil
 }
+func (c *dryRunClient) CreatePullRequest(_ context.Context, owner, repo, title, head, base, _ string) (int, error) {
+	c.logger.WithFields(logrus.Fields{
+		"owner": owner, "repo": repo, "title": title, "head": head, "base": base,
+	}).Info("[dry-run] CreatePullRequest")
+	return 0, nil
+}

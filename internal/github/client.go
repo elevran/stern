@@ -83,6 +83,12 @@ type LifecycleClient interface {
 	ListOpenItems(ctx context.Context, owner, repo string) ([]Item, error)
 }
 
+// PRCreatorClient creates a new pull request. Used by the /cherry-pick
+// handler to open a PR after cherry-picking commits into a new branch.
+type PRCreatorClient interface {
+	CreatePullRequest(ctx context.Context, owner, repo, title, head, base, body string) (int, error)
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -95,6 +101,7 @@ type Client interface {
 	UsersClient
 	ChecksClient
 	LifecycleClient
+	PRCreatorClient
 }
 
 type realClient struct {
@@ -307,6 +314,22 @@ func (c *realClient) DisableAutoMerge(ctx context.Context, nodeID string) error 
 		}`,
 		map[string]any{"id": nodeID},
 	)
+}
+
+// CreatePullRequest opens a new pull request. Returns the new PR's number.
+// head is the source branch (e.g. "feature-x"), base is the destination
+// branch (e.g. "main").
+func (c *realClient) CreatePullRequest(ctx context.Context, owner, repo, title, head, base, body string) (int, error) {
+	pr, _, err := c.ghc.PullRequests.Create(ctx, owner, repo, &gh.NewPullRequest{
+		Title: gh.Ptr(title),
+		Head:  gh.Ptr(head),
+		Base:  gh.Ptr(base),
+		Body:  gh.Ptr(body),
+	})
+	if err != nil {
+		return 0, err
+	}
+	return pr.GetNumber(), nil
 }
 
 func (c *realClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
