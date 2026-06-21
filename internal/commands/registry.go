@@ -149,6 +149,8 @@ func DefaultRegistry() Registry {
 		"approve": NewApproveHandler,
 		"hold":    NewHoldHandler,
 		"wip":     NewWIPHandler,
+		"close":   newCloseHandler("close"),
+		"reopen":  newCloseHandler("reopen"),
 	}
 }
 

@@ -46,6 +46,12 @@ type ContentClient interface {
 	GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error)
 }
 
+// IssueStateClient covers opening and closing issues and pull requests.
+type IssueStateClient interface {
+	CloseIssue(ctx context.Context, owner, repo string, number int) error
+	ReopenIssue(ctx context.Context, owner, repo string, number int) error
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -53,6 +59,7 @@ type Client interface {
 	CommentsClient
 	PermissionsClient
 	ContentClient
+	IssueStateClient
 }
 
 type realClient struct {
@@ -243,6 +250,18 @@ func (c *realClient) GetFileContent(ctx context.Context, owner, repo, path, ref 
 	return []byte(content), nil
 }
 
+func (c *realClient) CloseIssue(ctx context.Context, owner, repo string, number int) error {
+	req := &gh.IssueRequest{State: gh.Ptr("closed")}
+	_, _, err := c.ghc.Issues.Edit(ctx, owner, repo, number, req)
+	return err
+}
+
+func (c *realClient) ReopenIssue(ctx context.Context, owner, repo string, number int) error {
+	req := &gh.IssueRequest{State: gh.Ptr("open")}
+	_, _, err := c.ghc.Issues.Edit(ctx, owner, repo, number, req)
+	return err
+}
+
 // dryRunClient wraps a Client and logs mutating calls without executing them.
 type dryRunClient struct {
 	inner  Client
@@ -309,5 +328,13 @@ func (c *dryRunClient) EnableAutoMerge(_ context.Context, nodeID string, method 
 }
 func (c *dryRunClient) DisableAutoMerge(_ context.Context, nodeID string) error {
 	c.logger.WithFields(logrus.Fields{"nodeID": nodeID}).Info("[dry-run] DisableAutoMerge")
+	return nil
+}
+func (c *dryRunClient) CloseIssue(_ context.Context, owner, repo string, number int) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] CloseIssue")
+	return nil
+}
+func (c *dryRunClient) ReopenIssue(_ context.Context, owner, repo string, number int) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ReopenIssue")
 	return nil
 }
