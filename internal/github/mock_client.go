@@ -8,14 +8,14 @@ import (
 // MockClient is an in-process mock for tests. Zero value is usable.
 type MockClient struct {
 	// Pre-loaded read state.
-	RepoLabels      map[string]Label      // label name -> label
-	PullRequests    map[int]*PullRequest  // PR number -> PR
-	PRFiles         map[int][]string      // PR number -> filenames
-	FileContent     map[string][]byte     // "path@ref" -> content
-	OrgMembers      map[string]bool       // "org/user" -> is member
-	WriteAccess     map[string]bool       // "owner/repo/user" -> has write
-	Milestones      map[int]Milestone     // milestone number -> Milestone
-	CheckRuns map[string][]CheckRun // "owner/repo/sha" -> all check runs (caller filters)
+	RepoLabels   map[string]Label      // label name -> label
+	PullRequests map[int]*PullRequest  // PR number -> PR
+	PRFiles      map[int][]string      // PR number -> filenames
+	FileContent  map[string][]byte     // "path@ref" -> content
+	OrgMembers   map[string]bool       // "org/user" -> is member
+	WriteAccess  map[string]bool       // "owner/repo/user" -> has write
+	Milestones   map[int]Milestone     // milestone number -> Milestone
+	CheckRuns    map[string][]CheckRun // "owner/repo/sha" -> all check runs (caller filters)
 
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
@@ -69,19 +69,19 @@ type UsersRecord struct {
 
 func NewMockClient() *MockClient {
 	return &MockClient{
-		RepoLabels:      make(map[string]Label),
-		PullRequests:    make(map[int]*PullRequest),
-		PRFiles:         make(map[int][]string),
-		FileContent:     make(map[string][]byte),
-		OrgMembers:      make(map[string]bool),
-		WriteAccess:     make(map[string]bool),
-		Milestones:      make(map[int]Milestone),
-		CheckRuns: make(map[string][]CheckRun),
-		IssueLabels:     make(map[int]map[string]bool),
-		IssueMilestone:  make(map[int]int),
-		Assignees:       make(map[int][]string),
-		ReviewRequests:  make(map[int][]string),
-		Errors:          make(map[string]error),
+		RepoLabels:     make(map[string]Label),
+		PullRequests:   make(map[int]*PullRequest),
+		PRFiles:        make(map[int][]string),
+		FileContent:    make(map[string][]byte),
+		OrgMembers:     make(map[string]bool),
+		WriteAccess:    make(map[string]bool),
+		Milestones:     make(map[int]Milestone),
+		CheckRuns:      make(map[string][]CheckRun),
+		IssueLabels:    make(map[int]map[string]bool),
+		IssueMilestone: make(map[int]int),
+		Assignees:      make(map[int][]string),
+		ReviewRequests: make(map[int][]string),
+		Errors:         make(map[string]error),
 	}
 }
 
