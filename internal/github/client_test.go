@@ -3,11 +3,9 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	gh "github.com/google/go-github/v72/github"

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
