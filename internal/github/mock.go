@@ -19,16 +19,22 @@ type MockClient struct {
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
 	IssueMilestone map[int]int             // issue number -> milestone number (0 = none)
+	Assignees      map[int][]string        // issue number -> assigned users
+	ReviewRequests map[int][]string        // PR number -> requested reviewers
 
 	// Call records for assertions.
-	Reactions         []ReactionRecord
-	Comments          []CommentRecord
-	AutoMergeEnabled  []string // nodeIDs passed to EnableAutoMerge
-	AutoMergeDisabled []string // nodeIDs passed to DisableAutoMerge
-	IssueClosed       []int    // issue numbers passed to CloseIssue
-	IssueReopened     []int    // issue numbers passed to ReopenIssue
-	MilestoneSet      []MilestoneSetRecord
-	MilestoneCleared  []int // issue numbers passed to ClearMilestone
+	Reactions          []ReactionRecord
+	Comments           []CommentRecord
+	AutoMergeEnabled   []string // nodeIDs passed to EnableAutoMerge
+	AutoMergeDisabled  []string // nodeIDs passed to DisableAutoMerge
+	IssueClosed        []int    // issue numbers passed to CloseIssue
+	IssueReopened      []int    // issue numbers passed to ReopenIssue
+	MilestoneSet       []MilestoneSetRecord
+	MilestoneCleared   []int // issue numbers passed to ClearMilestone
+	AssigneesAdded     []UsersRecord
+	AssigneesRemoved   []UsersRecord
+	ReviewersRequested []UsersRecord
+	ReviewersRemoved   []UsersRecord
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -49,6 +55,11 @@ type MilestoneSetRecord struct {
 	MilestoneID int
 }
 
+type UsersRecord struct {
+	Number int
+	Users  []string
+}
+
 func NewMockClient() *MockClient {
 	return &MockClient{
 		RepoLabels:     make(map[string]Label),
@@ -60,6 +71,8 @@ func NewMockClient() *MockClient {
 		Milestones:     make(map[int]Milestone),
 		IssueLabels:    make(map[int]map[string]bool),
 		IssueMilestone: make(map[int]int),
+		Assignees:      make(map[int][]string),
+		ReviewRequests: make(map[int][]string),
 		Errors:         make(map[string]error),
 	}
 }
@@ -244,5 +257,82 @@ func (m *MockClient) ClearMilestone(_ context.Context, _, _ string, number int) 
 	}
 	delete(m.IssueMilestone, number)
 	m.MilestoneCleared = append(m.MilestoneCleared, number)
+	return nil
+}
+func (m *MockClient) AddAssignees(_ context.Context, _, _ string, number int, users []string) error {
+	if err := m.err("AddAssignees"); err != nil {
+		return err
+	}
+	existing := make(map[string]bool)
+	for _, u := range m.Assignees[number] {
+		existing[u] = true
+	}
+	for _, u := range users {
+		existing[u] = true
+	}
+	merged := make([]string, 0, len(existing))
+	for u := range existing {
+		merged = append(merged, u)
+	}
+	m.Assignees[number] = merged
+	m.AssigneesAdded = append(m.AssigneesAdded, UsersRecord{Number: number, Users: users})
+	return nil
+}
+
+func (m *MockClient) RemoveAssignees(_ context.Context, _, _ string, number int, users []string) error {
+	if err := m.err("RemoveAssignees"); err != nil {
+		return err
+	}
+	toRemove := make(map[string]bool, len(users))
+	for _, u := range users {
+		toRemove[u] = true
+	}
+	remaining := make([]string, 0, len(m.Assignees[number]))
+	for _, u := range m.Assignees[number] {
+		if !toRemove[u] {
+			remaining = append(remaining, u)
+		}
+	}
+	m.Assignees[number] = remaining
+	m.AssigneesRemoved = append(m.AssigneesRemoved, UsersRecord{Number: number, Users: users})
+	return nil
+}
+
+func (m *MockClient) RequestReviewers(_ context.Context, _, _ string, number int, users []string) error {
+	if err := m.err("RequestReviewers"); err != nil {
+		return err
+	}
+	existing := make(map[string]bool)
+	for _, u := range m.ReviewRequests[number] {
+		existing[u] = true
+	}
+	for _, u := range users {
+		existing[u] = true
+	}
+	merged := make([]string, 0, len(existing))
+	for u := range existing {
+		merged = append(merged, u)
+	}
+	m.ReviewRequests[number] = merged
+	m.ReviewersRequested = append(m.ReviewersRequested, UsersRecord{Number: number, Users: users})
+	return nil
+}
+
+func (m *MockClient) RemoveReviewers(_ context.Context, _, _ string, number int, users []string) error {
+	if err := m.err("RemoveReviewers"); err != nil {
+		return err
+	}
+	toRemove := make(map[string]bool, len(users))
+	for _, u := range users {
+		toRemove[u] = true
+	}
+	remaining := make([]string, 0, len(m.ReviewRequests[number]))
+	for _, u := range m.ReviewRequests[number] {
+		if !toRemove[u] {
+			remaining = append(remaining, u)
+		}
+	}
+	m.ReviewRequests[number] = remaining
+	m.ReviewersRemoved = append(m.ReviewersRemoved, UsersRecord{Number: number, Users: users})
 	return nil
 }

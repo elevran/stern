@@ -59,6 +59,14 @@ type MilestoneClient interface {
 	ClearMilestone(ctx context.Context, owner, repo string, number int) error
 }
 
+// UsersClient covers reviewer and assignee management.
+type UsersClient interface {
+	AddAssignees(ctx context.Context, owner, repo string, number int, users []string) error
+	RemoveAssignees(ctx context.Context, owner, repo string, number int, users []string) error
+	RequestReviewers(ctx context.Context, owner, repo string, number int, users []string) error
+	RemoveReviewers(ctx context.Context, owner, repo string, number int, users []string) error
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -68,6 +76,7 @@ type Client interface {
 	ContentClient
 	IssueStateClient
 	MilestoneClient
+	UsersClient
 }
 
 type realClient struct {
@@ -126,6 +135,26 @@ func (c *realClient) AddLabels(ctx context.Context, owner, repo string, number i
 
 func (c *realClient) RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error {
 	_, err := c.ghc.Issues.RemoveLabelForIssue(ctx, owner, repo, number, label)
+	return err
+}
+
+func (c *realClient) AddAssignees(ctx context.Context, owner, repo string, number int, users []string) error {
+	_, _, err := c.ghc.Issues.AddAssignees(ctx, owner, repo, number, users)
+	return err
+}
+
+func (c *realClient) RemoveAssignees(ctx context.Context, owner, repo string, number int, users []string) error {
+	_, _, err := c.ghc.Issues.RemoveAssignees(ctx, owner, repo, number, users)
+	return err
+}
+
+func (c *realClient) RequestReviewers(ctx context.Context, owner, repo string, number int, users []string) error {
+	_, _, err := c.ghc.PullRequests.RequestReviewers(ctx, owner, repo, number, gh.ReviewersRequest{Reviewers: users})
+	return err
+}
+
+func (c *realClient) RemoveReviewers(ctx context.Context, owner, repo string, number int, users []string) error {
+	_, err := c.ghc.PullRequests.RemoveReviewers(ctx, owner, repo, number, gh.ReviewersRequest{Reviewers: users})
 	return err
 }
 
@@ -389,5 +418,21 @@ func (c *dryRunClient) SetMilestone(_ context.Context, owner, repo string, numbe
 }
 func (c *dryRunClient) ClearMilestone(_ context.Context, owner, repo string, number int) error {
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ClearMilestone")
+	return nil
+}
+func (c *dryRunClient) AddAssignees(_ context.Context, owner, repo string, number int, users []string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] AddAssignees")
+	return nil
+}
+func (c *dryRunClient) RemoveAssignees(_ context.Context, owner, repo string, number int, users []string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RemoveAssignees")
+	return nil
+}
+func (c *dryRunClient) RequestReviewers(_ context.Context, owner, repo string, number int, users []string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RequestReviewers")
+	return nil
+}
+func (c *dryRunClient) RemoveReviewers(_ context.Context, owner, repo string, number int, users []string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RemoveReviewers")
 	return nil
 }
