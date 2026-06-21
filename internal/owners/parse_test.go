@@ -3,6 +3,7 @@ package owners_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -283,4 +284,45 @@ aliases:
 		[]string{"main.go"})
 	require.NoError(t, err)
 	assert.Empty(t, uncovered, "charlie should be covered via team-a alias expansion")
+}
+
+// TestLoadForPaths_NonNotFoundErrorFailsClosed verifies that a non-404 error
+// from GetFileContent (e.g. transient network failure) is returned to the
+// caller instead of being treated as "no OWNERS here, keep walking up".
+// Per review #118.
+func TestLoadForPaths_NonNotFoundErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.Errors["GetFileContent"] = errors.New("connection refused")
+
+	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	require.Error(t, err, "expected LoadForPaths to return the underlying error, not swallow it")
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+// TestUncoveredFiles_NonNotFoundErrorFailsClosed is the same property for
+// UncoveredFiles.
+func TestUncoveredFiles_NonNotFoundErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.Errors["GetFileContent"] = errors.New("connection refused")
+
+	uncovered, err := owners.UncoveredFiles(context.Background(), mc, "o", "r", "sha", "alice",
+		[]string{"foo.go"})
+	require.Error(t, err, "expected UncoveredFiles to surface the underlying error")
+	assert.Nil(t, uncovered)
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+// TestLoadForPaths_AliasesLoadErrorFailsClosed verifies that a non-404 error
+// loading OWNERS_ALIASES is propagated up, rather than silently disabling
+// alias expansion.
+func TestLoadForPaths_AliasesLoadErrorFailsClosed(t *testing.T) {
+	mc := github.NewMockClient()
+	mc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - team-a\n")
+	// Pre-populate OWNERS_ALIASES so the walk proceeds past it; then make
+	// OWNERS_ALIASES itself error with a non-404.
+	mc.Errors["GetFileContent"] = errors.New("rate limit hit")
+
+	_, err := owners.LoadForPaths(context.Background(), mc, "o", "r", "sha", []string{"foo.go"})
+	require.Error(t, err, "expected OWNERS_ALIASES load failure to propagate")
+	assert.Contains(t, err.Error(), "rate limit hit")
 }

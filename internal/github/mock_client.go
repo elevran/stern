@@ -3,6 +3,9 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
+
+	gh "github.com/google/go-github/v72/github"
 )
 
 // MockClient is an in-process mock for tests. Zero value is usable.
@@ -255,7 +258,14 @@ func (m *MockClient) GetFileContent(_ context.Context, _, _, path, ref string) (
 	key := path + "@" + ref
 	content, ok := m.FileContent[key]
 	if !ok {
-		return nil, fmt.Errorf("file %q not found at ref %q", path, ref)
+		// Match the real client's behaviour: missing files surface as a
+		// 404, which IsNotFoundError recognises. Tests that exercise
+		// production fail-closed semantics (e.g. owners.LoadForPaths)
+		// rely on this distinction.
+		return nil, &gh.ErrorResponse{
+			Response: &http.Response{StatusCode: http.StatusNotFound},
+			Message:  fmt.Sprintf("file %q not found at ref %q", path, ref),
+		}
 	}
 	return content, nil
 }

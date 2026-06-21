@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/elevran/stern/internal/config"
@@ -61,7 +62,12 @@ func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Conte
 		return nil
 	}
 	if sc.PR.HeadSHA == "" {
-		return nil
+		// Fail-closed: we cannot verify OWNERS coverage without a ref to
+		// fetch the OWNERS files at. The old checkOwners path returned nil
+		// here, which silently bypassed the check when the event context
+		// was missing the head SHA. With per-file OWNERS this bypass would
+		// let non-OWNERS commenters through.
+		return fmt.Errorf("cannot verify OWNERS coverage: PR head SHA is unknown")
 	}
 	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {

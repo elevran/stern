@@ -126,7 +126,7 @@ func TestApprove_PartialOwnership_Rejected(t *testing.T) {
 	ghc.FileContent["dir-b/OWNERS@abc123"] = []byte("approvers:\n  - bob\n")
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for partial ownership")
@@ -144,7 +144,7 @@ func TestApprove_FullOwnership_Accepted(t *testing.T) {
 	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added for full ownership")
@@ -159,10 +159,28 @@ func TestApprove_NoOwnersFiles_Accepted(t *testing.T) {
 	sc.Author = "outsider"
 	ghc.PRFiles[1] = []string{"some/path/f.go"}
 
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved added when no OWNERS files exist")
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction")
+}
+
+// TestApprove_EmptyHeadSHAFailsClosed verifies that /approve fails when the
+// PR's HeadSHA is unknown (cannot fetch OWNERS files at any ref). The old
+// `checkOwners` path silently bypassed the check in this case; the per-file
+// OWNERS check must fail-closed instead.
+func TestApprove_EmptyHeadSHAFailsClosed(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "outsider"
+	sc.PR.HeadSHA = "" // unknown head — would have silently bypassed the old check
+
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when HeadSHA is unknown")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction (internal error, not -1)")
+	assert.NotEmpty(t, ghc.Comments, "expected an error comment explaining the failure")
 }

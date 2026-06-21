@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -35,8 +36,16 @@ type ResolvedOwners struct {
 // root, collecting approvers and reviewers. Duplicate logins are deduplicated.
 // If no OWNERS files are found, it returns empty slices (caller should treat
 // this as "any org member may approve/review").
+//
+// A non-404 error from the ContentClient (network failure, rate-limit, etc.)
+// is returned to the caller — fail-closed rather than treating the transient
+// error as "no OWNERS here, keep walking up", which would silently widen
+// approval authority.
 func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, ref string, changedPaths []string) (*ResolvedOwners, error) {
-	aliases, _ := loadAliases(ctx, ghc, owner, repo, ref)
+	aliases, err := loadAliases(ctx, ghc, owner, repo, ref)
+	if err != nil {
+		return nil, err
+	}
 
 	approverSet := make(map[string]bool)
 	reviewerSet := make(map[string]bool)
@@ -51,7 +60,10 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 			ownersPath := ownersFilePath(dir)
 			data, err := ghc.GetFileContent(ctx, owner, repo, ownersPath, ref)
 			if err != nil {
-				continue // no OWNERS file in this directory
+				if !github.IsNotFoundError(err) {
+					return nil, fmt.Errorf("loading %s@%s: %w", ownersPath, ref, err)
+				}
+				continue // 404: no OWNERS in this directory
 			}
 			var f File
 			if err := yaml.Unmarshal(data, &f); err != nil {
@@ -105,20 +117,30 @@ func (r *ResolvedOwners) HasOwners() bool {
 // UncoveredFiles returns the subset of changedPaths that have an OWNERS chain
 // but no approver matching login. Paths with no OWNERS file are considered
 // covered (anyone may approve them).
+//
+// A non-404 error from the ContentClient is returned to the caller — same
+// fail-closed rationale as LoadForPaths.
 func UncoveredFiles(
 	ctx context.Context,
 	ghc github.ContentClient,
 	owner, repo, ref, login string,
 	changedPaths []string,
 ) ([]string, error) {
-	aliases, _ := loadAliases(ctx, ghc, owner, repo, ref)
+	aliases, err := loadAliases(ctx, ghc, owner, repo, ref)
+	if err != nil {
+		return nil, err
+	}
 	var uncovered []string
 	for _, path := range changedPaths {
 		clean := filepath.Clean(path)
 		if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
 			continue
 		}
-		if !coveredByLogin(ctx, ghc, owner, repo, ref, clean, login, aliases) {
+		covered, err := coveredByLogin(ctx, ghc, owner, repo, ref, clean, login, aliases)
+		if err != nil {
+			return nil, err
+		}
+		if !covered {
 			uncovered = append(uncovered, clean)
 		}
 	}
@@ -128,11 +150,17 @@ func UncoveredFiles(
 // coveredByLogin walks the OWNERS chain for path from most-specific directory
 // to root. Returns true if login is an approver in any ancestor OWNERS, or if
 // no OWNERS chain exists anywhere (open directory).
-func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, ref, path, login string, aliases *Aliases) bool {
+//
+// Non-404 errors abort the walk and surface to the caller — treating a
+// transient API failure as "no OWNERS here" would silently widen authority.
+func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, ref, path, login string, aliases *Aliases) (bool, error) {
 	for _, dir := range ancestorDirs(path) {
 		data, err := ghc.GetFileContent(ctx, owner, repo, ownersFilePath(dir), ref)
 		if err != nil {
-			continue // no OWNERS in this directory, keep walking up
+			if !github.IsNotFoundError(err) {
+				return false, fmt.Errorf("loading %s@%s: %w", ownersFilePath(dir), ref, err)
+			}
+			continue // 404: no OWNERS in this directory, keep walking up
 		}
 		var f File
 		if err := yaml.Unmarshal(data, &f); err != nil {
@@ -145,13 +173,13 @@ func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, 
 		for _, a := range f.Approvers {
 			for _, expanded := range expandAlias(a, aliases) {
 				if strings.EqualFold(expanded, login) {
-					return true
+					return true, nil
 				}
 			}
 		}
-		return false // level has approvers but login is not among them
+		return false, nil // level has approvers but login is not among them
 	}
-	return true // no OWNERS found anywhere — open directory
+	return true, nil // no OWNERS found anywhere — open directory
 }
 
 // ancestorDirs returns the directory path and all its ancestors up to root,
@@ -183,14 +211,19 @@ func ownersFilePath(dir string) string {
 
 // loadAliases fetches and parses the root OWNERS_ALIASES file.
 // Returns an empty Aliases and no error if the file doesn't exist.
+// A non-404 error is returned to the caller so transient API failures
+// don't silently disable alias expansion.
 func loadAliases(ctx context.Context, ghc github.ContentClient, owner, repo, ref string) (*Aliases, error) {
 	data, err := ghc.GetFileContent(ctx, owner, repo, "OWNERS_ALIASES", ref)
 	if err != nil {
-		return &Aliases{Aliases: make(map[string][]string)}, nil
+		if github.IsNotFoundError(err) {
+			return &Aliases{Aliases: make(map[string][]string)}, nil
+		}
+		return nil, fmt.Errorf("loading OWNERS_ALIASES@%s: %w", ref, err)
 	}
 	var a Aliases
 	if err := yaml.Unmarshal(data, &a); err != nil {
-		return &Aliases{Aliases: make(map[string][]string)}, nil
+		return nil, fmt.Errorf("parsing OWNERS_ALIASES@%s: %w", ref, err)
 	}
 	if a.Aliases == nil {
 		a.Aliases = make(map[string][]string)
