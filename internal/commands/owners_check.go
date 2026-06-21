@@ -21,7 +21,7 @@ func checkOwners(
 	sc *event.Context,
 	ghc ownersCheckerClient,
 	check func(*owners.ResolvedOwners) bool,
-	permMsg string,
+	permFmt string,
 ) error {
 	if sc.PR.HeadSHA == "" {
 		return nil
@@ -38,7 +38,7 @@ func checkOwners(
 		return nil
 	}
 	if !check(resolved) {
-		return PermissionError(permMsg, sc.Author)
+		return PermissionError(permFmt, sc.Author)
 	}
 	return nil
 }
