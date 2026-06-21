@@ -73,6 +73,16 @@ type ChecksClient interface {
 	RerunCheckRun(ctx context.Context, owner, repo string, id int64) error
 }
 
+// LifecycleClient covers operations needed by the scheduled lifecycle sweep.
+// Mutations on items (label add/remove, comment, close) are covered by the
+// existing LabelsClient / CommentsClient / IssueStateClient interfaces.
+type LifecycleClient interface {
+	// ListOpenItems returns all open issues and pull requests. Both kinds are
+	// returned via the Issues API; Item.IsPR is set when the underlying
+	// response contains a pull_request key.
+	ListOpenItems(ctx context.Context, owner, repo string) ([]Item, error)
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -84,6 +94,7 @@ type Client interface {
 	MilestoneClient
 	UsersClient
 	ChecksClient
+	LifecycleClient
 }
 
 type realClient struct {
@@ -391,4 +402,40 @@ func (c *realClient) ListCheckRuns(ctx context.Context, owner, repo, sha string)
 func (c *realClient) RerunCheckRun(ctx context.Context, owner, repo string, id int64) error {
 	_, err := c.ghc.Checks.ReRequestCheckRun(ctx, owner, repo, id)
 	return err
+}
+
+// ListOpenItems returns all open issues and pull requests in the repository,
+// paginating through every page. Both kinds surface via the Issues API.
+func (c *realClient) ListOpenItems(ctx context.Context, owner, repo string) ([]Item, error) {
+	var all []Item
+	opts := &gh.IssueListByRepoOptions{
+		State:       "open",
+		ListOptions: gh.ListOptions{PerPage: 100},
+	}
+	for {
+		items, resp, err := c.ghc.Issues.ListByRepo(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range items {
+			labels := make([]string, 0, len(it.Labels))
+			for _, l := range it.Labels {
+				labels = append(labels, l.GetName())
+			}
+			all = append(all, Item{
+				Number:       it.GetNumber(),
+				Labels:       labels,
+				UpdatedAt:    it.GetUpdatedAt().Time,
+				IsPR:         it.PullRequestLinks != nil,
+				HasMilestone: it.Milestone != nil,
+			})
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		// IssueListByRepoOptions embeds both ListCursorOptions and ListOptions
+		// (both define Page); disambiguate to the integer-typed ListOptions.Page.
+		opts.ListOptions.Page = resp.NextPage
+	}
+	return all, nil
 }

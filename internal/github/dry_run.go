@@ -42,6 +42,9 @@ func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) (
 func (c *dryRunClient) ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
 	return c.inner.ListCheckRuns(ctx, owner, repo, sha)
 }
+func (c *dryRunClient) ListOpenItems(ctx context.Context, owner, repo string) ([]Item, error) {
+	return c.inner.ListOpenItems(ctx, owner, repo)
+}
 
 // Mutating methods: log and no-op.
 func (c *dryRunClient) CreateLabel(ctx context.Context, owner, repo string, label Label) error {
