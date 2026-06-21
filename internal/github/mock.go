@@ -14,9 +14,11 @@ type MockClient struct {
 	FileContent  map[string][]byte    // "path@ref" -> content
 	OrgMembers   map[string]bool      // "org/user" -> is member
 	WriteAccess  map[string]bool      // "owner/repo/user" -> has write
+	Milestones   map[int]Milestone    // milestone number -> Milestone
 
 	// Mutable state modified by calls.
-	IssueLabels map[int]map[string]bool // issue number -> set of label names
+	IssueLabels    map[int]map[string]bool // issue number -> set of label names
+	IssueMilestone map[int]int             // issue number -> milestone number (0 = none)
 
 	// Call records for assertions.
 	Reactions         []ReactionRecord
@@ -25,6 +27,8 @@ type MockClient struct {
 	AutoMergeDisabled []string // nodeIDs passed to DisableAutoMerge
 	IssueClosed       []int    // issue numbers passed to CloseIssue
 	IssueReopened     []int    // issue numbers passed to ReopenIssue
+	MilestoneSet      []MilestoneSetRecord
+	MilestoneCleared  []int // issue numbers passed to ClearMilestone
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -40,16 +44,23 @@ type CommentRecord struct {
 	Body   string
 }
 
+type MilestoneSetRecord struct {
+	Number      int
+	MilestoneID int
+}
+
 func NewMockClient() *MockClient {
 	return &MockClient{
-		RepoLabels:   make(map[string]Label),
-		PullRequests: make(map[int]*PullRequest),
-		PRFiles:      make(map[int][]string),
-		FileContent:  make(map[string][]byte),
-		OrgMembers:   make(map[string]bool),
-		WriteAccess:  make(map[string]bool),
-		IssueLabels:  make(map[int]map[string]bool),
-		Errors:       make(map[string]error),
+		RepoLabels:     make(map[string]Label),
+		PullRequests:   make(map[int]*PullRequest),
+		PRFiles:        make(map[int][]string),
+		FileContent:    make(map[string][]byte),
+		OrgMembers:     make(map[string]bool),
+		WriteAccess:    make(map[string]bool),
+		Milestones:     make(map[int]Milestone),
+		IssueLabels:    make(map[int]map[string]bool),
+		IssueMilestone: make(map[int]int),
+		Errors:         make(map[string]error),
 	}
 }
 
@@ -204,5 +215,34 @@ func (m *MockClient) ReopenIssue(_ context.Context, _, _ string, number int) err
 		return err
 	}
 	m.IssueReopened = append(m.IssueReopened, number)
+	return nil
+}
+
+func (m *MockClient) ListMilestones(_ context.Context, _, _ string) ([]Milestone, error) {
+	if err := m.err("ListMilestones"); err != nil {
+		return nil, err
+	}
+	out := make([]Milestone, 0, len(m.Milestones))
+	for _, ms := range m.Milestones {
+		out = append(out, ms)
+	}
+	return out, nil
+}
+
+func (m *MockClient) SetMilestone(_ context.Context, _, _ string, number int, milestoneID int) error {
+	if err := m.err("SetMilestone"); err != nil {
+		return err
+	}
+	m.IssueMilestone[number] = milestoneID
+	m.MilestoneSet = append(m.MilestoneSet, MilestoneSetRecord{Number: number, MilestoneID: milestoneID})
+	return nil
+}
+
+func (m *MockClient) ClearMilestone(_ context.Context, _, _ string, number int) error {
+	if err := m.err("ClearMilestone"); err != nil {
+		return err
+	}
+	delete(m.IssueMilestone, number)
+	m.MilestoneCleared = append(m.MilestoneCleared, number)
 	return nil
 }

@@ -52,6 +52,13 @@ type IssueStateClient interface {
 	ReopenIssue(ctx context.Context, owner, repo string, number int) error
 }
 
+// MilestoneClient covers milestone lookup and assignment on issues/PRs.
+type MilestoneClient interface {
+	ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error)
+	SetMilestone(ctx context.Context, owner, repo string, number int, milestoneID int) error
+	ClearMilestone(ctx context.Context, owner, repo string, number int) error
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -60,6 +67,7 @@ type Client interface {
 	PermissionsClient
 	ContentClient
 	IssueStateClient
+	MilestoneClient
 }
 
 type realClient struct {
@@ -262,6 +270,40 @@ func (c *realClient) ReopenIssue(ctx context.Context, owner, repo string, number
 	return err
 }
 
+func (c *realClient) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
+	var all []Milestone
+	opts := &gh.MilestoneListOptions{
+		State:       "all",
+		ListOptions: gh.ListOptions{PerPage: 100},
+	}
+	for {
+		milestones, resp, err := c.ghc.Issues.ListMilestones(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range milestones {
+			all = append(all, Milestone{Number: m.GetNumber(), Title: m.GetTitle()})
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return all, nil
+}
+
+func (c *realClient) SetMilestone(ctx context.Context, owner, repo string, number int, milestoneID int) error {
+	_, _, err := c.ghc.Issues.Edit(ctx, owner, repo, number, &gh.IssueRequest{
+		Milestone: &milestoneID,
+	})
+	return err
+}
+
+func (c *realClient) ClearMilestone(ctx context.Context, owner, repo string, number int) error {
+	_, _, err := c.ghc.Issues.RemoveMilestone(ctx, owner, repo, number)
+	return err
+}
+
 // dryRunClient wraps a Client and logs mutating calls without executing them.
 type dryRunClient struct {
 	inner  Client
@@ -291,6 +333,9 @@ func (c *dryRunClient) HasWriteAccess(ctx context.Context, owner, repo, user str
 }
 func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
 	return c.inner.GetFileContent(ctx, owner, repo, path, ref)
+}
+func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
+	return c.inner.ListMilestones(ctx, owner, repo)
 }
 
 // Mutating methods: log and no-op.
@@ -336,5 +381,13 @@ func (c *dryRunClient) CloseIssue(_ context.Context, owner, repo string, number 
 }
 func (c *dryRunClient) ReopenIssue(_ context.Context, owner, repo string, number int) error {
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ReopenIssue")
+	return nil
+}
+func (c *dryRunClient) SetMilestone(_ context.Context, owner, repo string, number int, milestoneID int) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "milestoneID": milestoneID}).Info("[dry-run] SetMilestone")
+	return nil
+}
+func (c *dryRunClient) ClearMilestone(_ context.Context, owner, repo string, number int) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ClearMilestone")
 	return nil
 }

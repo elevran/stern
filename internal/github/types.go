@@ -25,6 +25,12 @@ type Label struct {
 	Description string
 }
 
+// Milestone represents a GitHub repository milestone.
+type Milestone struct {
+	Number int
+	Title  string
+}
+
 // IsNotFoundError reports whether err is a 404 from the GitHub API.
 func IsNotFoundError(err error) bool {
 	var ghErr *gh.ErrorResponse
