@@ -89,9 +89,10 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 
 	inFence := false
 	for line := range strings.SplitSeq(body, "\n") {
+		trimmed := strings.TrimSpace(line)
 		// Skip lines inside fenced code blocks; commands there are
 		// documentation/examples, not invocations.
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+		if strings.HasPrefix(trimmed, "```") {
 			inFence = !inFence
 			continue
 		}
@@ -99,7 +100,7 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 			continue
 		}
 		// Skip blockquote lines; quoting an old command must not re-trigger it.
-		if strings.HasPrefix(strings.TrimSpace(line), ">") {
+		if strings.HasPrefix(trimmed, ">") {
 			continue
 		}
 		tokens := strings.Fields(line)

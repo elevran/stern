@@ -147,9 +147,9 @@ func TestDispatch_SkipsFencedCodeBlock(t *testing.T) {
 
 	called := false
 	reg := commands.Registry{
-		"ping": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 			return &spyHandler{onHandle: func() error { called = true; return nil }}
-		},
+		}},
 	}
 	body := "Look at this:\n```\n/ping\n```\nDone."
 
@@ -166,9 +166,9 @@ func TestDispatch_SkipsBlockquoteLine(t *testing.T) {
 
 	called := false
 	reg := commands.Registry{
-		"ping": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 			return &spyHandler{onHandle: func() error { called = true; return nil }}
-		},
+		}},
 	}
 	body := "> previously I ran /ping\n/ping"
 
@@ -186,9 +186,9 @@ func TestDispatch_NormalLineAfterClosedFence(t *testing.T) {
 
 	called := false
 	reg := commands.Registry{
-		"ping": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 			return &spyHandler{onHandle: func() error { called = true; return nil }}
-		},
+		}},
 	}
 	// Open fence in one paragraph, close it in the next, then a real /ping on a fresh line.
 	body := "Example:\n```\n/ping\n```\n/ping"
@@ -207,9 +207,9 @@ func TestDispatch_UnclosedFenceTreatedAsOpen(t *testing.T) {
 
 	called := false
 	reg := commands.Registry{
-		"ping": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+		"ping": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 			return &spyHandler{onHandle: func() error { called = true; return nil }}
-		},
+		}},
 	}
 	// Odd number of fence markers → remainder stays "in fence" (conservative).
 	body := "```\n/ping\nanother /ping"
