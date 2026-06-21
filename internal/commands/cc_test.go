@@ -9,6 +9,8 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func ccReg() commands.Registry {
@@ -23,18 +25,11 @@ func TestCC_NoArgs_UsageComment(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc", ccReg(), ghc, &config.Options{})
 
-	if len(ghc.ReviewersRequested) != 0 {
-		t.Errorf("expected RequestReviewers NOT called with no args, got %d", len(ghc.ReviewersRequested))
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
-	if len(ghc.Comments) == 0 {
-		t.Fatalf("expected usage comment, got none")
-	}
-	if got := ghc.Comments[0].Body; got != "usage: /cc @user [@user ...]" {
-		t.Errorf("unexpected usage comment: %q", got)
-	}
+	assert.Empty(t, ghc.ReviewersRequested, "expected RequestReviewers NOT called with no args")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
+	require.NotEmpty(t, ghc.Comments)
+	assert.Equal(t, "usage: /cc @user [@user ...]", ghc.Comments[0].Body)
 }
 
 func TestCC_HappyPath(t *testing.T) {
@@ -42,15 +37,10 @@ func TestCC_HappyPath(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc @carol", ccReg(), ghc, &config.Options{})
 
-	if len(ghc.ReviewersRequested) != 1 {
-		t.Fatalf("expected 1 RequestReviewers call, got %d", len(ghc.ReviewersRequested))
-	}
-	if got := ghc.ReviewersRequested[0].Users; len(got) != 1 || got[0] != "carol" {
-		t.Errorf("expected RequestReviewers([carol]), got %v", got)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction, got %v", ghc.Reactions)
-	}
+	require.Len(t, ghc.ReviewersRequested, 1)
+	assert.Equal(t, []string{"carol"}, ghc.ReviewersRequested[0].Users)
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestCC_MultiUser(t *testing.T) {
@@ -58,10 +48,7 @@ func TestCC_MultiUser(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc @carol @dan", ccReg(), ghc, &config.Options{})
 
-	got := ghc.ReviewersRequested[0].Users
-	if len(got) != 2 || got[0] != "carol" || got[1] != "dan" {
-		t.Errorf("expected [carol dan], got %v", got)
-	}
+	assert.Equal(t, []string{"carol", "dan"}, ghc.ReviewersRequested[0].Users)
 }
 
 func TestCC_StripsAtAndDeduplicates(t *testing.T) {
@@ -69,10 +56,7 @@ func TestCC_StripsAtAndDeduplicates(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc @carol @CAROL @dan", ccReg(), ghc, &config.Options{})
 
-	got := ghc.ReviewersRequested[0].Users
-	if len(got) != 2 || got[0] != "carol" || got[1] != "dan" {
-		t.Errorf("expected [carol dan] after dedupe+lowercase, got %v", got)
-	}
+	assert.Equal(t, []string{"carol", "dan"}, ghc.ReviewersRequested[0].Users)
 }
 
 func TestUncc_HappyPath(t *testing.T) {
@@ -81,12 +65,8 @@ func TestUncc_HappyPath(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/uncc @carol", ccReg(), ghc, &config.Options{})
 
-	if len(ghc.ReviewersRemoved) != 1 {
-		t.Fatalf("expected 1 RemoveReviewers call, got %d", len(ghc.ReviewersRemoved))
-	}
-	if got := ghc.ReviewersRemoved[0].Users; len(got) != 1 || got[0] != "carol" {
-		t.Errorf("expected RemoveReviewers([carol]), got %v", got)
-	}
+	require.Len(t, ghc.ReviewersRemoved, 1)
+	assert.Equal(t, []string{"carol"}, ghc.ReviewersRemoved[0].Users)
 }
 
 func TestCC_NotOnPR(t *testing.T) {
@@ -101,12 +81,9 @@ func TestCC_NotOnPR(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc @carol", ccReg(), ghc, &config.Options{})
 
-	if len(ghc.ReviewersRequested) != 0 {
-		t.Errorf("expected RequestReviewers NOT called when not on a PR")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.ReviewersRequested, "expected RequestReviewers NOT called when not on a PR")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestCC_HandleError_SuppressesPost(t *testing.T) {
@@ -115,11 +92,8 @@ func TestCC_HandleError_SuppressesPost(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/cc @carol", ccReg(), ghc, &config.Options{})
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

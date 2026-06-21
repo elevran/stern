@@ -7,6 +7,8 @@ import (
 
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func kindOpts() *config.Options {
@@ -22,12 +24,9 @@ func TestKind_AddsLabel(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
-	if !ghc.IssueLabels[1]["kind/bug"] {
-		t.Error("expected kind/bug label to be added")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /kind, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["kind/bug"], "expected kind/bug label to be added")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestKind_AllowsMultipleValues(t *testing.T) {
@@ -39,12 +38,8 @@ func TestKind_AllowsMultipleValues(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind feature", reg, ghc, kindOpts())
 
-	if !ghc.IssueLabels[1]["kind/bug"] {
-		t.Error("expected pre-existing kind/bug label to remain (no mutual exclusion)")
-	}
-	if !ghc.IssueLabels[1]["kind/feature"] {
-		t.Error("expected new kind/feature label to be added")
-	}
+	assert.True(t, ghc.IssueLabels[1]["kind/bug"], "expected pre-existing kind/bug label to remain (no mutual exclusion)")
+	assert.True(t, ghc.IssueLabels[1]["kind/feature"], "expected new kind/feature label to be added")
 }
 
 func TestKind_InvalidValue(t *testing.T) {
@@ -52,12 +47,9 @@ func TestKind_InvalidValue(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind unknown", reg, ghc, kindOpts())
 
-	if len(ghc.IssueLabels[1]) > 0 {
-		t.Errorf("expected no labels added for invalid kind, got %v", ghc.IssueLabels[1])
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for invalid kind, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.IssueLabels[1], "expected no labels added for invalid kind")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestKind_NoArg(t *testing.T) {
@@ -65,9 +57,8 @@ func TestKind_NoArg(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind", reg, ghc, kindOpts())
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for /kind with no arg, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction for /kind with no arg")
 }
 
 func TestKind_NotOnPR(t *testing.T) {
@@ -77,9 +68,8 @@ func TestKind_NotOnPR(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 for /kind on non-PR, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 for /kind on non-PR")
 }
 
 func TestKind_HandleError_SuppressesPost(t *testing.T) {
@@ -89,11 +79,8 @@ func TestKind_HandleError_SuppressesPost(t *testing.T) {
 	reg := commands.Registry{"kind": commands.NewKindHandler}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

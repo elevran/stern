@@ -8,6 +8,8 @@ import (
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func wipOpts() *config.Options {
@@ -24,12 +26,9 @@ func TestWIP_AddsLabel(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if !ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label added")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /wip, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label added")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestWIP_RemovesLabel(t *testing.T) {
@@ -40,12 +39,9 @@ func TestWIP_RemovesLabel(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label removed")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /wip toggle-off, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label removed")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestWIP_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
@@ -64,15 +60,9 @@ func TestWIP_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label removed")
-	}
-	if len(ghc.AutoMergeEnabled) == 0 {
-		t.Error("expected EnableAutoMerge called when PR becomes eligible after wip cancel")
-	}
-	if len(ghc.AutoMergeDisabled) > 0 {
-		t.Error("expected DisableAutoMerge NOT called when PR is eligible")
-	}
+	assert.False(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label removed")
+	assert.NotEmpty(t, ghc.AutoMergeEnabled, "expected EnableAutoMerge called when PR becomes eligible after wip cancel")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected DisableAutoMerge NOT called when PR is eligible")
 }
 
 func TestWIP_AddsLabel_DisablesAutoMerge(t *testing.T) {
@@ -80,9 +70,7 @@ func TestWIP_AddsLabel_DisablesAutoMerge(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if len(ghc.AutoMergeDisabled) == 0 {
-		t.Error("expected DisableAutoMerge called when wip label added")
-	}
+	assert.NotEmpty(t, ghc.AutoMergeDisabled, "expected DisableAutoMerge called when wip label added")
 }
 
 func TestWIP_NotOnPR(t *testing.T) {
@@ -92,9 +80,8 @@ func TestWIP_NotOnPR(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 for /wip on non-PR, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 for /wip on non-PR")
 }
 
 func TestWIP_HandleError_SuppressesPost(t *testing.T) {
@@ -104,11 +91,8 @@ func TestWIP_HandleError_SuppressesPost(t *testing.T) {
 	reg := commands.Registry{"wip": commands.NewWIPHandler}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

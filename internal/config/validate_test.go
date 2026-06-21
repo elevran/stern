@@ -5,29 +5,23 @@ import (
 	"testing"
 
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidate_Clean(t *testing.T) {
 	opts := validOptions()
-	if errs := opts.Validate(); len(errs) != 0 {
-		t.Errorf("expected no errors for valid config, got: %v", errs)
-	}
+	assert.Empty(t, opts.Validate(), "expected no errors for valid config")
 }
 
 func TestValidate_UnknownPlugin(t *testing.T) {
 	opts := validOptions()
 	opts.Plugins = []string{"lgmt"} // typo
 	errs := opts.Validate()
-	if len(errs) == 0 {
-		t.Fatal("expected error for unknown plugin")
-	}
+	require.NotEmpty(t, errs, "expected error for unknown plugin")
 	msg := errs[0].Error()
-	if !strings.Contains(msg, "ERROR") {
-		t.Errorf("expected ERROR level, got: %s", msg)
-	}
-	if !strings.Contains(msg, "unknown plugin") {
-		t.Errorf("expected 'unknown plugin' in message, got: %s", msg)
-	}
+	assert.Contains(t, msg, "ERROR")
+	assert.Contains(t, msg, "unknown plugin")
 }
 
 func TestValidate_InvalidMergeMethod(t *testing.T) {
@@ -40,9 +34,7 @@ func TestValidate_InvalidMergeMethod(t *testing.T) {
 			hasError = true
 		}
 	}
-	if !hasError {
-		t.Errorf("expected ERROR for invalid merge.method, got: %v", errs)
-	}
+	assert.True(t, hasError, "expected ERROR for invalid merge.method, got: %v", errs)
 }
 
 func TestValidate_InvalidMergeStrategy(t *testing.T) {
@@ -55,9 +47,7 @@ func TestValidate_InvalidMergeStrategy(t *testing.T) {
 			hasError = true
 		}
 	}
-	if !hasError {
-		t.Errorf("expected ERROR for invalid merge.strategy, got: %v", errs)
-	}
+	assert.True(t, hasError, "expected ERROR for invalid merge.strategy, got: %v", errs)
 }
 
 func TestValidate_CherryPickEnabledWithoutPattern(t *testing.T) {
@@ -71,9 +61,7 @@ func TestValidate_CherryPickEnabledWithoutPattern(t *testing.T) {
 			hasError = true
 		}
 	}
-	if !hasError {
-		t.Errorf("expected ERROR for cherry-pick without branch pattern, got: %v", errs)
-	}
+	assert.True(t, hasError, "expected ERROR for cherry-pick without branch pattern, got: %v", errs)
 }
 
 func TestValidate_InvalidBranchPatternRegex(t *testing.T) {
@@ -86,9 +74,7 @@ func TestValidate_InvalidBranchPatternRegex(t *testing.T) {
 			hasError = true
 		}
 	}
-	if !hasError {
-		t.Errorf("expected ERROR for invalid regex, got: %v", errs)
-	}
+	assert.True(t, hasError, "expected ERROR for invalid regex, got: %v", errs)
 }
 
 func TestValidate_NativeStrategyNoBlockingLabels(t *testing.T) {
@@ -102,9 +88,7 @@ func TestValidate_NativeStrategyNoBlockingLabels(t *testing.T) {
 			hasWarn = true
 		}
 	}
-	if !hasWarn {
-		t.Errorf("expected WARN for native strategy with no blocking labels, got: %v", errs)
-	}
+	assert.True(t, hasWarn, "expected WARN for native strategy with no blocking labels, got: %v", errs)
 }
 
 func TestValidate_AllIssuesCollected(t *testing.T) {
@@ -113,9 +97,7 @@ func TestValidate_AllIssuesCollected(t *testing.T) {
 	opts.Merge.Method = "fast-forward"
 	errs := opts.Validate()
 	// Should have: 2 unknown plugin errors + 1 merge.method error = 3+ errors
-	if len(errs) < 3 {
-		t.Errorf("expected at least 3 errors (all collected), got %d: %v", len(errs), errs)
-	}
+	assert.GreaterOrEqual(t, len(errs), 3, "expected at least 3 errors (all collected), got %d: %v", len(errs), errs)
 }
 
 func TestValidate_LoadBalancing(t *testing.T) {
@@ -142,11 +124,10 @@ func TestValidate_LoadBalancing(t *testing.T) {
 					hasErr = true
 				}
 			}
-			if tt.wantErr && !hasErr {
-				t.Errorf("expected ERROR for load_balancing=%q, got: %v", tt.value, errs)
-			}
-			if !tt.wantErr && hasErr {
-				t.Errorf("expected no ERROR for load_balancing=%q, got: %v", tt.value, errs)
+			if tt.wantErr {
+				assert.True(t, hasErr, "expected ERROR for load_balancing=%q, got: %v", tt.value, errs)
+			} else {
+				assert.False(t, hasErr, "expected no ERROR for load_balancing=%q, got: %v", tt.value, errs)
 			}
 		})
 	}
@@ -168,12 +149,8 @@ func TestValidate_WarnOnlyExits0(t *testing.T) {
 			hasWarn = true
 		}
 	}
-	if hasError {
-		t.Error("expected no ERROR for warn-only config")
-	}
-	if !hasWarn {
-		t.Error("expected at least one WARN")
-	}
+	assert.False(t, hasError, "expected no ERROR for warn-only config")
+	assert.True(t, hasWarn, "expected at least one WARN")
 }
 
 // validOptions returns an Options with all required fields set to valid values.
@@ -222,11 +199,10 @@ func TestValidate_LifecycleDays(t *testing.T) {
 					hasErr = true
 				}
 			}
-			if tt.wantErr && !hasErr {
-				t.Errorf("expected ERROR for stale=%d rotten=%d, got: %v", tt.staleDays, tt.rottenDays, issues)
-			}
-			if !tt.wantErr && hasErr {
-				t.Errorf("expected no ERROR for stale=%d rotten=%d, got: %v", tt.staleDays, tt.rottenDays, issues)
+			if tt.wantErr {
+				assert.True(t, hasErr, "expected ERROR for stale=%d rotten=%d", tt.staleDays, tt.rottenDays)
+			} else {
+				assert.False(t, hasErr, "expected no ERROR for stale=%d rotten=%d", tt.staleDays, tt.rottenDays)
 			}
 		})
 	}
@@ -310,9 +286,7 @@ func TestValidate_LabelDefinitions(t *testing.T) {
 						break
 					}
 				}
-				if !found {
-					t.Errorf("expected ERROR matching %q, got issues: %v", want, issues)
-				}
+				assert.True(t, found, "expected ERROR matching %q, got issues: %v", want, issues)
 			}
 			if tt.wantFails == nil {
 				for _, e := range issues {
@@ -353,9 +327,7 @@ func TestValidate_LabelCrossReferences(t *testing.T) {
 				found = true
 			}
 		}
-		if !found {
-			t.Errorf("expected blocking_labels cross-ref ERROR, got: %v", issues)
-		}
+		assert.True(t, found, "expected blocking_labels cross-ref ERROR, got: %v", issues)
 	})
 	t.Run("empty label_definitions skips check", func(t *testing.T) {
 		opts := validOptions()

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
 )
 
 // defaultSizeBuckets mirrors config.defaultSizeBuckets so tests can exercise
@@ -27,9 +28,8 @@ func TestSizeValidate_DefaultsClean(t *testing.T) {
 	}
 	errs := o.Validate()
 	for _, e := range errs {
-		if strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR") {
-			t.Errorf("unexpected ERROR for default size buckets: %v", e)
-		}
+		assert.False(t, strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR"),
+			"unexpected ERROR for default size buckets: %v", e)
 	}
 }
 
@@ -50,9 +50,7 @@ func TestSizeValidate_EmptyName(t *testing.T) {
 			hasErr = true
 		}
 	}
-	if !hasErr {
-		t.Errorf("expected ERROR for empty bucket name, got %v", errs)
-	}
+	assert.True(t, hasErr, "expected ERROR for empty bucket name, got %v", errs)
 }
 
 func TestSizeValidate_OverlappingRanges(t *testing.T) {
@@ -72,9 +70,7 @@ func TestSizeValidate_OverlappingRanges(t *testing.T) {
 			hasErr = true
 		}
 	}
-	if !hasErr {
-		t.Errorf("expected ERROR for overlapping ranges, got %v", errs)
-	}
+	assert.True(t, hasErr, "expected ERROR for overlapping ranges, got %v", errs)
 }
 
 func TestSizeValidate_NonOverlappingRanges(t *testing.T) {
@@ -89,9 +85,8 @@ func TestSizeValidate_NonOverlappingRanges(t *testing.T) {
 	}
 	errs := o.Validate()
 	for _, e := range errs {
-		if strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR") {
-			t.Errorf("unexpected ERROR: %v", e)
-		}
+		assert.False(t, strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR"),
+			"unexpected ERROR: %v", e)
 	}
 }
 
@@ -107,9 +102,8 @@ func TestSizeValidate_OpenEndedNoOverlap(t *testing.T) {
 	}
 	errs := o.Validate()
 	for _, e := range errs {
-		if strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR") {
-			t.Errorf("unexpected ERROR for open-ended buckets: %v", e)
-		}
+		assert.False(t, strings.Contains(e.Error(), "size.buckets") && strings.Contains(e.Error(), "ERROR"),
+			"unexpected ERROR for open-ended buckets: %v", e)
 	}
 }
 
@@ -130,9 +124,7 @@ func TestSizeValidate_TwoOpenUpperBoundsOverlap(t *testing.T) {
 			hasErr = true
 		}
 	}
-	if !hasErr {
-		t.Errorf("expected ERROR for two open-upper-bound buckets that overlap, got %v", errs)
-	}
+	assert.True(t, hasErr, "expected ERROR for two open-upper-bound buckets that overlap, got %v", errs)
 }
 
 func TestSizeValidate_EnabledButEmpty(t *testing.T) {
@@ -150,9 +142,7 @@ func TestSizeValidate_EnabledButEmpty(t *testing.T) {
 			hasWarn = true
 		}
 	}
-	if !hasWarn {
-		t.Errorf("expected WARN when size enabled with no buckets, got %v", errs)
-	}
+	assert.True(t, hasWarn, "expected WARN when size enabled with no buckets, got %v", errs)
 }
 
 func TestSizeValidate_NegativeValues(t *testing.T) {
@@ -171,7 +161,5 @@ func TestSizeValidate_NegativeValues(t *testing.T) {
 			hasErr = true
 		}
 	}
-	if !hasErr {
-		t.Errorf("expected ERROR for negative min/max, got %v", errs)
-	}
+	assert.True(t, hasErr, "expected ERROR for negative min/max, got %v", errs)
 }

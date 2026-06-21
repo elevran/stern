@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	gh "github.com/google/go-github/v72/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/github"
@@ -35,9 +37,7 @@ func TestIsTitleWIP(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got := pr.IsTitleWIP(tc.title)
-		if got != tc.want {
-			t.Errorf("IsTitleWIP(%q) = %v, want %v", tc.title, got, tc.want)
-		}
+		assert.Equal(t, tc.want, got, "IsTitleWIP(%q)", tc.title)
 	}
 }
 
@@ -49,12 +49,8 @@ func TestHandlePREventWIP_AddsOnWIPTitle(t *testing.T) {
 		Labels: []string{},
 	}
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
-		t.Fatalf("HandlePREventWIP() error = %v", err)
-	}
-	if !ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label added for WIP title")
-	}
+	require.NoError(t, pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()))
+	assert.True(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label added for WIP title")
 }
 
 func TestHandlePREventWIP_RemovesWhenTitleClean(t *testing.T) {
@@ -67,12 +63,8 @@ func TestHandlePREventWIP_RemovesWhenTitleClean(t *testing.T) {
 	}
 	ghc.PullRequests[1] = &p
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
-		t.Fatalf("HandlePREventWIP() error = %v", err)
-	}
-	if ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label removed when title is clean")
-	}
+	require.NoError(t, pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()))
+	assert.False(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label removed when title is clean")
 }
 
 func TestHandlePREventWIP_DraftAddsLabel(t *testing.T) {
@@ -84,12 +76,8 @@ func TestHandlePREventWIP_DraftAddsLabel(t *testing.T) {
 		Labels:  []string{},
 	}
 
-	if err := pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()); err != nil {
-		t.Fatalf("HandlePREventWIP() error = %v", err)
-	}
-	if !ghc.IssueLabels[1]["do-not-merge/wip"] {
-		t.Error("expected wip label added for draft PR")
-	}
+	require.NoError(t, pr.HandlePREventWIP(context.Background(), ghc, "o", "r", p, wipOpts()))
+	assert.True(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label added for draft PR")
 }
 
 func TestInvalidateLGTMOnPush(t *testing.T) {
@@ -103,12 +91,8 @@ func TestInvalidateLGTMOnPush(t *testing.T) {
 		LGTM: config.LGTMOptions{InvalidateOnPush: true},
 	}
 
-	if err := pr.InvalidateLGTMOnPush(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("InvalidateLGTMOnPush() error = %v", err)
-	}
-	if ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm label removed on push")
-	}
+	require.NoError(t, pr.InvalidateLGTMOnPush(context.Background(), ghc, "o", "r", p, opts))
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label removed on push")
 }
 
 func TestInvalidateApproveOnPush(t *testing.T) {
@@ -122,12 +106,8 @@ func TestInvalidateApproveOnPush(t *testing.T) {
 		Approve: config.ApproveOptions{InvalidateOnPush: true},
 	}
 
-	if err := pr.InvalidateApproveOnPush(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("InvalidateApproveOnPush() error = %v", err)
-	}
-	if ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved label removed on push")
-	}
+	require.NoError(t, pr.InvalidateApproveOnPush(context.Background(), ghc, "o", "r", p, opts))
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved label removed on push")
 }
 
 func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
@@ -149,12 +129,8 @@ func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
 	}
 	opts := &config.Options{}
 
-	if err := pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts); err != nil {
-		t.Fatalf("HandlePREvent() error = %v", err)
-	}
-	if len(ghc.IssueLabels) > 0 {
-		t.Error("expected no label mutations for bot-sender event")
-	}
+	require.NoError(t, pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts))
+	assert.Empty(t, ghc.IssueLabels, "expected no label mutations for bot-sender event")
 }
 
 func TestHandlePREvent_BotLoginSkipped(t *testing.T) {
@@ -176,12 +152,8 @@ func TestHandlePREvent_BotLoginSkipped(t *testing.T) {
 	}
 	opts := &config.Options{BotLogin: "stern-bot"}
 
-	if err := pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts); err != nil {
-		t.Fatalf("HandlePREvent() error = %v", err)
-	}
-	if len(ghc.IssueLabels) > 0 {
-		t.Error("expected no label mutations for configured bot login")
-	}
+	require.NoError(t, pr.HandlePREvent(context.Background(), ghc, "o", "r", evt, opts))
+	assert.Empty(t, ghc.IssueLabels, "expected no label mutations for configured bot login")
 }
 
 // TestPREventHandler_Handle_BotSuffixSkipped exercises the new
@@ -206,10 +178,6 @@ func TestPREventHandler_Handle_BotSuffixSkipped(t *testing.T) {
 	}
 
 	handler := pr.NewPREventHandler(ghc, &config.Options{})
-	if err := handler.Handle(context.Background(), "o", "r", evt); err != nil {
-		t.Fatalf("Handle() error = %v", err)
-	}
-	if len(ghc.IssueLabels) > 0 {
-		t.Error("expected no label mutations for bot-sender event via PREventHandler")
-	}
+	require.NoError(t, handler.Handle(context.Background(), "o", "r", evt))
+	assert.Empty(t, ghc.IssueLabels, "expected no label mutations for bot-sender event via PREventHandler")
 }

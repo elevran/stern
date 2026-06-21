@@ -3,14 +3,14 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	gh "github.com/google/go-github/v72/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 )
 
@@ -19,9 +19,7 @@ func newTestClient(t *testing.T, srv *httptest.Server) *realClient {
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"})
 	tc := oauth2.NewClient(context.Background(), ts)
 	ghc, err := gh.NewClient(tc).WithAuthToken("test-token").WithEnterpriseURLs(srv.URL+"/", srv.URL+"/")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
+	require.NoError(t, err)
 	return &realClient{ghc: ghc}
 }
 
@@ -53,18 +51,10 @@ func TestEnableAutoMerge_SendsCorrectMutation(t *testing.T) {
 	})
 
 	c := newTestClient(t, srv)
-	if err := c.EnableAutoMerge(context.Background(), "PR_abc", "squash"); err != nil {
-		t.Fatalf("EnableAutoMerge() error = %v", err)
-	}
-	if !strings.Contains(captured.Query, "enablePullRequestAutoMerge") {
-		t.Errorf("query does not contain enablePullRequestAutoMerge: %q", captured.Query)
-	}
-	if captured.Variables["id"] != "PR_abc" {
-		t.Errorf("variable id = %v, want PR_abc", captured.Variables["id"])
-	}
-	if captured.Variables["method"] != "SQUASH" {
-		t.Errorf("variable method = %v, want SQUASH", captured.Variables["method"])
-	}
+	require.NoError(t, c.EnableAutoMerge(context.Background(), "PR_abc", "squash"))
+	assert.Contains(t, captured.Query, "enablePullRequestAutoMerge")
+	assert.Equal(t, "PR_abc", captured.Variables["id"])
+	assert.Equal(t, "SQUASH", captured.Variables["method"])
 }
 
 func TestDisableAutoMerge_SendsCorrectMutation(t *testing.T) {
@@ -77,15 +67,9 @@ func TestDisableAutoMerge_SendsCorrectMutation(t *testing.T) {
 	})
 
 	c := newTestClient(t, srv)
-	if err := c.DisableAutoMerge(context.Background(), "PR_xyz"); err != nil {
-		t.Fatalf("DisableAutoMerge() error = %v", err)
-	}
-	if !strings.Contains(captured.Query, "disablePullRequestAutoMerge") {
-		t.Errorf("query does not contain disablePullRequestAutoMerge: %q", captured.Query)
-	}
-	if captured.Variables["id"] != "PR_xyz" {
-		t.Errorf("variable id = %v, want PR_xyz", captured.Variables["id"])
-	}
+	require.NoError(t, c.DisableAutoMerge(context.Background(), "PR_xyz"))
+	assert.Contains(t, captured.Query, "disablePullRequestAutoMerge")
+	assert.Equal(t, "PR_xyz", captured.Variables["id"])
 }
 
 func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
@@ -98,22 +82,12 @@ func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
 
 	c := newTestClient(t, srv)
 	err := c.EnableAutoMerge(context.Background(), "PR_abc", "squash")
-	if err == nil {
-		t.Error("expected error for GraphQL error response, got nil")
-	}
-	if !strings.Contains(err.Error(), "clean status") {
-		t.Errorf("error = %v, want it to contain 'clean status'", err)
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "clean status")
 	var gqlErr *GraphQLError
-	if !errors.As(err, &gqlErr) {
-		t.Fatalf("expected error to be a *GraphQLError, got %T: %v", err, err)
-	}
-	if gqlErr.Type != "UNPROCESSABLE" {
-		t.Errorf("expected GraphQLError.Type=UNPROCESSABLE, got %q", gqlErr.Type)
-	}
-	if gqlErr.Message != "Pull request Pull request is in clean status" {
-		t.Errorf("unexpected GraphQLError.Message: %q", gqlErr.Message)
-	}
+	require.ErrorAs(t, err, &gqlErr, "expected error to be a *GraphQLError")
+	assert.Equal(t, "UNPROCESSABLE", gqlErr.Type)
+	assert.Equal(t, "Pull request Pull request is in clean status", gqlErr.Message)
 }
 
 // paginatedLabelsServer returns labels in two pages: page 1 returns
@@ -156,21 +130,13 @@ func TestListRepoLabels_Pagination(t *testing.T) {
 
 	c := newTestClient(t, srv)
 	labels, err := c.ListRepoLabels(context.Background(), "o", "r")
-	if err != nil {
-		t.Fatalf("ListRepoLabels() error = %v", err)
-	}
-	if len(labels) != 3 {
-		t.Fatalf("expected 3 labels across two pages, got %d: %v", len(labels), labels)
-	}
+	require.NoError(t, err)
+	require.Len(t, labels, 3, "expected 3 labels across two pages")
 	names := make(map[string]bool)
 	for _, l := range labels {
 		names[l.Name] = true
 	}
-	for _, want := range []string{"bug", "feature", "wontfix"} {
-		if !names[want] {
-			t.Errorf("expected label %q in result, got %v", want, labels)
-		}
-	}
+	assert.Equal(t, map[string]bool{"bug": true, "feature": true, "wontfix": true}, names, "expected all labels to be present")
 }
 
 func TestListPullRequestFiles_Pagination(t *testing.T) {
@@ -203,16 +169,11 @@ func TestListPullRequestFiles_Pagination(t *testing.T) {
 
 	c := newTestClient(t, srv)
 	files, err := c.ListPullRequestFiles(context.Background(), "o", "r", 1)
-	if err != nil {
-		t.Fatalf("ListPullRequestFiles() error = %v", err)
-	}
-	if len(files) != 3 {
-		t.Fatalf("expected 3 files across two pages, got %d: %v", len(files), files)
-	}
+	require.NoError(t, err)
 	want := map[string]bool{"main.go": true, "cmd/run.go": true, "internal/x/y.go": true}
+	got := make(map[string]bool)
 	for _, f := range files {
-		if !want[f] {
-			t.Errorf("unexpected file %q in result", f)
-		}
+		got[f] = true
 	}
+	assert.Equal(t, want, got, "expected all files to be present across two pages")
 }

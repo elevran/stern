@@ -7,6 +7,8 @@ import (
 
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func approveOpts(allowSelf bool) *config.Options {
@@ -32,12 +34,9 @@ func TestApprove_AddsLabel(t *testing.T) {
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	if !ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved label to be added")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label to be added")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /approve")
 }
 
 func TestApprove_Cancel_RemovesLabel(t *testing.T) {
@@ -48,12 +47,9 @@ func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts(false))
 
-	if ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved label removed on cancel")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /approve cancel, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved label removed on cancel")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /approve cancel")
 }
 
 func TestApprove_SelfApprovalDenied(t *testing.T) {
@@ -63,12 +59,9 @@ func TestApprove_SelfApprovalDenied(t *testing.T) {
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	if ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved NOT added for self-approval")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for self-approval")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
 func TestApprove_NonApproverDenied(t *testing.T) {
@@ -80,12 +73,9 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	if ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved NOT added for non-approver")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for non-approver")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
 func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
@@ -106,15 +96,10 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
 
-	if !ghc.IssueLabels[1]["approved"] {
-		t.Error("expected approved label added")
-	}
-	if ghc.EnableAutoMergeCallCount != 1 {
-		t.Errorf("expected EnableAutoMergeCallCount=1 after both labels present, got %d", ghc.EnableAutoMergeCallCount)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added")
+	assert.Equal(t, 1, ghc.EnableAutoMergeCallCount, "expected EnableAutoMergeCallCount=1 after both labels present")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /approve")
 }
 
 func TestApprove_HandleError_SuppressesPost(t *testing.T) {
@@ -125,11 +110,8 @@ func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

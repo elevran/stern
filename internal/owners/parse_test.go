@@ -4,25 +4,21 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/owners"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadForPaths_NoOwners(t *testing.T) {
 	ghc := github.NewMockClient() // no files loaded
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"pkg/foo.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if result.HasOwners() {
-		t.Error("expected no owners when no OWNERS files exist")
-	}
+	require.NoError(t, err)
+	assert.False(t, result.HasOwners(), "expected no owners when no OWNERS files exist")
 }
 
 func TestLoadForPaths_RootOwners(t *testing.T) {
@@ -35,18 +31,10 @@ reviewers:
   - charlie
 `)
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"README.md"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice to be an approver")
-	}
-	if !result.IsApprover("bob") {
-		t.Error("expected bob to be an approver")
-	}
-	if !result.IsReviewer("charlie") {
-		t.Error("expected charlie to be a reviewer")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "expected alice to be an approver")
+	assert.True(t, result.IsApprover("bob"), "expected bob to be an approver")
+	assert.True(t, result.IsReviewer("charlie"), "expected charlie to be a reviewer")
 }
 
 func TestLoadForPaths_DirectoryOwners(t *testing.T) {
@@ -56,12 +44,8 @@ approvers:
   - alice
 `)
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "abc123", []string{"pkg/foo.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice to be an approver via pkg/OWNERS")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "expected alice to be an approver via pkg/OWNERS")
 }
 
 func TestLoadForPaths_WalksHierarchy(t *testing.T) {
@@ -72,15 +56,9 @@ func TestLoadForPaths_WalksHierarchy(t *testing.T) {
 	ghc.FileContent["pkg/sub/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/sub/bar.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice from root OWNERS")
-	}
-	if !result.IsApprover("bob") {
-		t.Error("expected bob from pkg/sub/OWNERS")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "expected alice from root OWNERS")
+	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/sub/OWNERS")
 }
 
 func TestLoadForPaths_AliasExpansion(t *testing.T) {
@@ -94,15 +72,9 @@ aliases:
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - team-eng\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"main.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice via alias expansion")
-	}
-	if !result.IsApprover("bob") {
-		t.Error("expected bob via alias expansion")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "expected alice via alias expansion")
+	assert.True(t, result.IsApprover("bob"), "expected bob via alias expansion")
 }
 
 func TestLoadForPaths_CaseInsensitive(t *testing.T) {
@@ -110,15 +82,9 @@ func TestLoadForPaths_CaseInsensitive(t *testing.T) {
 	ghc.FileContent["OWNERS@sha"] = []byte("approvers:\n  - Alice\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"foo.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("IsApprover should be case-insensitive")
-	}
-	if !result.IsApprover("ALICE") {
-		t.Error("IsApprover should be case-insensitive")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "IsApprover should be case-insensitive")
+	assert.True(t, result.IsApprover("ALICE"), "IsApprover should be case-insensitive")
 }
 
 func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
@@ -129,12 +95,8 @@ func TestLoadForPaths_RejectsDotDotPath(t *testing.T) {
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
 		[]string{"../../admin/foo.go", "../secret.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if result.HasOwners() {
-		t.Error("expected path traversal paths to be rejected, got owners")
-	}
+	require.NoError(t, err)
+	assert.False(t, result.HasOwners(), "expected path traversal paths to be rejected, got owners")
 }
 
 func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
@@ -143,12 +105,8 @@ func TestLoadForPaths_RejectsAbsolutePath(t *testing.T) {
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
 		[]string{"/etc/passwd"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if result.HasOwners() {
-		t.Error("expected absolute path to be rejected")
-	}
+	require.NoError(t, err)
+	assert.False(t, result.HasOwners(), "expected absolute path to be rejected")
 }
 
 func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
@@ -157,12 +115,8 @@ func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha",
 		[]string{"pkg/foo.go", "internal/bar/baz.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice from root OWNERS for normal paths")
-	}
+	require.NoError(t, err)
+	assert.True(t, result.IsApprover("alice"), "expected alice from root OWNERS for normal paths")
 }
 
 // TestLoadForPaths_SortedApproversAndReviewers verifies that the Approvers and
@@ -184,17 +138,9 @@ reviewers:
 `)
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"main.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v", err)
-	}
-	wantApprovers := []string{"alice", "mike", "zoe"}
-	if got := result.Approvers; !slices.Equal(got, wantApprovers) {
-		t.Errorf("Approvers = %v, want %v (sorted ascending)", got, wantApprovers)
-	}
-	wantReviewers := []string{"bob", "yara"}
-	if got := result.Reviewers; !slices.Equal(got, wantReviewers) {
-		t.Errorf("Reviewers = %v, want %v (sorted ascending)", got, wantReviewers)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alice", "mike", "zoe"}, result.Approvers, "Approvers should be sorted ascending")
+	assert.Equal(t, []string{"bob", "yara"}, result.Reviewers, "Reviewers should be sorted ascending")
 }
 
 // captureLogger swaps logrus.StandardLogger().Out with a buffer for the
@@ -232,21 +178,11 @@ func TestLoadForPaths_MalformedYAMLLogsWarning(t *testing.T) {
 	out = captureLogger(func() {
 		result, err = owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/foo.go"})
 	})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v, want nil (warning, not error)", err)
-	}
-	if !strings.Contains(out, "level=warning") {
-		t.Errorf("expected warning level in log output, got: %q", out)
-	}
-	if !strings.Contains(out, "OWNERS file exists but could not be parsed") {
-		t.Errorf("expected parse warning message in log output, got: %q", out)
-	}
-	if !strings.Contains(out, "path=pkg/OWNERS") {
-		t.Errorf("expected path=pkg/OWNERS in log output, got: %q", out)
-	}
-	if !result.IsApprover("alice") {
-		t.Error("expected alice from the valid root OWNERS file to still be present")
-	}
+	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML (warning, not error)")
+	assert.Contains(t, out, "level=warning", "expected warning level in log output")
+	assert.Contains(t, out, "OWNERS file exists but could not be parsed", "expected parse warning message in log output")
+	assert.Contains(t, out, "path=pkg/OWNERS", "expected path=pkg/OWNERS in log output")
+	assert.True(t, result.IsApprover("alice"), "expected alice from the valid root OWNERS file to still be present")
 }
 
 // TestLoadForPaths_MalformedYAMLDoesNotBlockOtherFiles ensures the continue
@@ -260,10 +196,6 @@ func TestLoadForPaths_MalformedYAMLDoesNotBlockOtherFiles(t *testing.T) {
 	ghc.FileContent["pkg/OWNERS@sha"] = []byte("approvers:\n  - bob\n")
 
 	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"pkg/foo.go"})
-	if err != nil {
-		t.Fatalf("LoadForPaths() error = %v, want nil", err)
-	}
-	if !result.IsApprover("bob") {
-		t.Error("expected bob from pkg/OWNERS to still resolve despite root OWNERS being malformed")
-	}
+	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML")
+	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/OWNERS to still resolve despite root OWNERS being malformed")
 }

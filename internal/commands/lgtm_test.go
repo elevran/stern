@@ -9,6 +9,8 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func prContext(prAuthor string) (*event.Context, *github.MockClient) {
@@ -51,12 +53,9 @@ func TestLGTM_AddsLabel(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if !ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm label to be added")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /lgtm, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label to be added")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /lgtm")
 }
 
 func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
@@ -65,12 +64,9 @@ func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm cancel", reg, ghc, lgtmOpts(false))
 
-	if ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm label to be removed on cancel")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /lgtm cancel, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label to be removed on cancel")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /lgtm cancel")
 }
 
 func TestLGTM_SelfLGTMDenied(t *testing.T) {
@@ -79,12 +75,9 @@ func TestLGTM_SelfLGTMDenied(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm NOT added when author lgtms own PR")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for self-lgtm, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added when author lgtms own PR")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction for self-lgtm")
 }
 
 func TestLGTM_SelfLGTMAllowed(t *testing.T) {
@@ -93,12 +86,9 @@ func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(true))
 
-	if !ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm added when allow_self_lgtm=true")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful self-/lgtm, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added when allow_self_lgtm=true")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful self-/lgtm")
 }
 
 func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
@@ -110,12 +100,9 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm NOT added for non-reviewer when OWNERS present")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added for non-reviewer when OWNERS present")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
 func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
@@ -127,12 +114,9 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if !ghc.IssueLabels[1]["lgtm"] {
-		t.Error("expected lgtm added when no OWNERS files present")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /lgtm, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added when no OWNERS files present")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /lgtm")
 }
 
 func TestLGTM_NotOnPR_Denied(t *testing.T) {
@@ -147,9 +131,8 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 for /lgtm on non-PR, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 for /lgtm on non-PR")
 }
 
 func TestLGTM_HandleError_SuppressesPost(t *testing.T) {
@@ -159,11 +142,8 @@ func TestLGTM_HandleError_SuppressesPost(t *testing.T) {
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

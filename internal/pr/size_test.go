@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/pr"
@@ -50,9 +53,7 @@ func TestBucketForSize_Defaults(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got := pr.BucketForSize(tc.lines, opts.Size.Buckets)
-		if got != tc.want {
-			t.Errorf("BucketForSize(%d) = %q, want %q", tc.lines, got, tc.want)
-		}
+		assert.Equal(t, tc.want, got, "BucketForSize(%d)", tc.lines)
 	}
 }
 
@@ -61,30 +62,20 @@ func TestBucketForSize_NoMatch(t *testing.T) {
 		{Name: "MIN", Min: 1, Max: 5},
 		{Name: "MAX", Min: 100, Max: 200},
 	}
-	if got := pr.BucketForSize(50, buckets); got != "" {
-		t.Errorf("BucketForSize(50) = %q, want empty", got)
-	}
-	if got := pr.BucketForSize(0, buckets); got != "" {
-		t.Errorf("BucketForSize(0) = %q, want empty", got)
-	}
+	assert.Empty(t, pr.BucketForSize(50, buckets), "BucketForSize(50)")
+	assert.Empty(t, pr.BucketForSize(0, buckets), "BucketForSize(0)")
 }
 
 func TestBucketForSize_OpenEndedBuckets(t *testing.T) {
 	buckets := []config.SizeBucket{
 		{Name: "ANY", Min: 0, Max: 0},
 	}
-	if got := pr.BucketForSize(0, buckets); got != "ANY" {
-		t.Errorf("BucketForSize(0) = %q, want ANY", got)
-	}
-	if got := pr.BucketForSize(1_000_000, buckets); got != "ANY" {
-		t.Errorf("BucketForSize(big) = %q, want ANY", got)
-	}
+	assert.Equal(t, "ANY", pr.BucketForSize(0, buckets), "BucketForSize(0)")
+	assert.Equal(t, "ANY", pr.BucketForSize(1_000_000, buckets), "BucketForSize(big)")
 }
 
 func TestBucketForSize_EmptyBuckets(t *testing.T) {
-	if got := pr.BucketForSize(5, nil); got != "" {
-		t.Errorf("BucketForSize(5, nil) = %q, want empty", got)
-	}
+	assert.Empty(t, pr.BucketForSize(5, nil), "BucketForSize(5, nil)")
 }
 
 func TestHandlePREventSize_AddsLabel(t *testing.T) {
@@ -97,12 +88,8 @@ func TestHandlePREventSize_AddsLabel(t *testing.T) {
 		Labels:    []string{},
 	}
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
-	if !ghc.IssueLabels[1]["size/M"] {
-		t.Error("expected size/M label added")
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
+	assert.True(t, ghc.IssueLabels[1]["size/M"], "expected size/M label added")
 }
 
 func TestHandlePREventSize_ReplacesExistingLabel(t *testing.T) {
@@ -116,15 +103,9 @@ func TestHandlePREventSize_ReplacesExistingLabel(t *testing.T) {
 		Labels:    []string{"size/L"},
 	}
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
-	if ghc.IssueLabels[1]["size/L"] {
-		t.Error("expected old size/L label removed")
-	}
-	if !ghc.IssueLabels[1]["size/M"] {
-		t.Error("expected new size/M label added")
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
+	assert.False(t, ghc.IssueLabels[1]["size/L"], "expected old size/L label removed")
+	assert.True(t, ghc.IssueLabels[1]["size/M"], "expected new size/M label added")
 }
 
 func TestHandlePREventSize_NoOpWhenBucketsEmpty(t *testing.T) {
@@ -136,12 +117,8 @@ func TestHandlePREventSize_NoOpWhenBucketsEmpty(t *testing.T) {
 	}
 	opts := &config.Options{} // no buckets configured
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
-	if len(ghc.IssueLabels) > 0 {
-		t.Errorf("expected no label changes, got %v", ghc.IssueLabels)
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
+	assert.Empty(t, ghc.IssueLabels, "expected no label changes")
 }
 
 func TestHandlePREventSize_NoOpWhenNoBucketMatches(t *testing.T) {
@@ -160,12 +137,8 @@ func TestHandlePREventSize_NoOpWhenNoBucketMatches(t *testing.T) {
 		Deletions: 0,
 	}
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
-	if len(ghc.IssueLabels) > 0 {
-		t.Errorf("expected no label changes, got %v", ghc.IssueLabels)
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
+	assert.Empty(t, ghc.IssueLabels, "expected no label changes")
 }
 
 func TestHandlePREventSize_RemovesMultiplePriorSizeLabels(t *testing.T) {
@@ -182,20 +155,12 @@ func TestHandlePREventSize_RemovesMultiplePriorSizeLabels(t *testing.T) {
 		Labels:    []string{"size/XS", "size/XXL"},
 	}
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
 	// size/XXL must be gone (we added back size/XS, so checking XXL specifically
 	// confirms the prior XXL was actually removed rather than left in place).
-	if ghc.IssueLabels[1]["size/XXL"] {
-		t.Errorf("expected size/XXL removed; got %v", ghc.IssueLabels[1])
-	}
-	if !ghc.IssueLabels[1]["size/XS"] {
-		t.Errorf("expected size/XS added back; got %v", ghc.IssueLabels[1])
-	}
-	if len(ghc.IssueLabels[1]) != 1 {
-		t.Errorf("expected exactly one size label, got %v", ghc.IssueLabels[1])
-	}
+	assert.False(t, ghc.IssueLabels[1]["size/XXL"], "expected size/XXL removed; got %v", ghc.IssueLabels[1])
+	assert.True(t, ghc.IssueLabels[1]["size/XS"], "expected size/XS added back; got %v", ghc.IssueLabels[1])
+	assert.Len(t, ghc.IssueLabels[1], 1, "expected exactly one size label, got %v", ghc.IssueLabels[1])
 }
 
 func TestHandlePREventSize_LeavesNonSizeLabelsAlone(t *testing.T) {
@@ -211,13 +176,7 @@ func TestHandlePREventSize_LeavesNonSizeLabelsAlone(t *testing.T) {
 		Labels:    []string{"do-not-merge/hold"},
 	}
 
-	if err := pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts); err != nil {
-		t.Fatalf("HandlePREventSize() error = %v", err)
-	}
-	if !ghc.IssueLabels[1]["do-not-merge/hold"] {
-		t.Error("expected non-size label untouched")
-	}
-	if !ghc.IssueLabels[1]["size/XS"] {
-		t.Error("expected size/XS added")
-	}
+	require.NoError(t, pr.HandlePREventSize(context.Background(), ghc, "o", "r", p, opts))
+	assert.True(t, ghc.IssueLabels[1]["do-not-merge/hold"], "expected non-size label untouched")
+	assert.True(t, ghc.IssueLabels[1]["size/XS"], "expected size/XS added")
 }
