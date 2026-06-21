@@ -77,6 +77,41 @@ func TestValidate_InvalidBranchPatternRegex(t *testing.T) {
 	assert.True(t, hasError, "expected ERROR for invalid regex, got: %v", errs)
 }
 
+func TestValidate_CherryPickCommand(t *testing.T) {
+	tests := []struct {
+		name       string
+		command    string
+		wantError  bool
+		wantSubstr string // substring expected in error message
+	}{
+		{"empty (uses default)", "", false, ""},
+		{"cherry-pick (hyphenated)", "cherry-pick", false, ""},
+		{"cherrypick (no hyphen)", "cherrypick", false, ""},
+		{"cp (abbreviation)", "cp", false, ""},
+		{"cherry_pick (underscore rejected)", "cherry_pick", true, "cherry_pick.command"},
+		{"arbitrary string", "rebase", true, "cherry_pick.command"},
+		{"uppercase rejected", "CHERRY-PICK", true, "cherry_pick.command"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.CherryPick.Command = tt.command
+			errs := opts.Validate()
+			hasErr := false
+			for _, e := range errs {
+				if e.Level == "ERROR" && strings.Contains(e.Field, "cherry_pick.command") {
+					hasErr = true
+				}
+			}
+			if tt.wantError {
+				assert.True(t, hasErr, "expected ERROR for command=%q, got: %v", tt.command, errs)
+			} else {
+				assert.False(t, hasErr, "expected no ERROR for command=%q, got: %v", tt.command, errs)
+			}
+		})
+	}
+}
+
 func TestValidate_NativeStrategyNoBlockingLabels(t *testing.T) {
 	opts := validOptions()
 	opts.Merge.Strategy = "native"

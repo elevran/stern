@@ -87,6 +87,16 @@ func (o *CherryPickOptions) validate(pluginEnabled bool) []ValidationIssue {
 			})
 		}
 	}
+	switch o.Command {
+	case "", CherryPickCommandCherryPick, CherryPickCommandCherrypick, CherryPickCommandCP:
+		// valid (empty means the default will be applied)
+	default:
+		issues = append(issues, ValidationIssue{
+			Level:   "ERROR",
+			Field:   "cherry_pick.command",
+			Message: fmt.Sprintf("invalid value %q (must be cherry-pick, cherrypick, or cp)", o.Command),
+		})
+	}
 	return issues
 }
 
