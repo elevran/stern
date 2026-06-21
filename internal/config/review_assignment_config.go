@@ -6,6 +6,14 @@ import "fmt"
 type ReviewAssignmentOptions struct {
 	Enabled       bool   `yaml:"enabled"`
 	LoadBalancing string `yaml:"load_balancing"`
+	Count         int    `yaml:"count"`
+}
+
+// applyDefaults sets Count to 1 when unset.
+func (o *ReviewAssignmentOptions) applyDefaults() {
+	if o.Count == 0 {
+		o.Count = 1
+	}
 }
 
 func (o *ReviewAssignmentOptions) validate() []ValidationIssue {
