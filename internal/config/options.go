@@ -21,6 +21,9 @@ type Options struct {
 	CherryPick       CherryPickOptions       `yaml:"cherry_pick"`
 	ReviewAssignment ReviewAssignmentOptions `yaml:"review_assignment"`
 	Lifecycle        LifecycleOptions        `yaml:"lifecycle"`
+	Kind             KindOptions             `yaml:"kind"`
+	Area             AreaOptions             `yaml:"area"`
+	Priority         PriorityOptions         `yaml:"priority"`
 
 	LabelDefinitions []LabelDefinition `yaml:"label_definitions"`
 }

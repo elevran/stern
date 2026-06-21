@@ -11,6 +11,7 @@ var knownPlugins = []string{
 	"lgtm", "approve", "hold", "wip", "close", "reopen", "milestone",
 	"retest",
 	"cherry-pick", "review_assignment", "size", "lifecycle",
+	"kind", "area", "priority",
 }
 
 // ValidationIssue is a single validation finding.
@@ -44,6 +45,9 @@ func (o *Options) Validate() []error {
 	issues = append(issues, o.CherryPick.validate(o.HasPlugin("cherry-pick"))...)
 	issues = append(issues, o.Lifecycle.validate()...)
 	issues = append(issues, o.ReviewAssignment.validate()...)
+	issues = append(issues, o.Kind.validate(o.HasPlugin("kind"))...)
+	issues = append(issues, o.Area.validate(o.HasPlugin("area"))...)
+	issues = append(issues, o.Priority.validate(o.HasPlugin("priority"))...)
 
 	errs := make([]error, len(issues))
 	for i, issue := range issues {
