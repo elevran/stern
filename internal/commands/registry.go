@@ -160,6 +160,7 @@ func DefaultRegistry() Registry {
 		"kind":      NewKindHandler,
 		"area":      NewAreaHandler,
 		"priority":  NewPriorityHandler,
+		"lifecycle": NewLifecycleHandler,
 	}
 }
 
