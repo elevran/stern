@@ -51,6 +51,7 @@ func (o *Options) applyDefaults() {
 	o.CherryPick.applyDefaults()
 	o.Lifecycle.applyDefaults()
 	o.Size.applyDefaults()
+	o.ReviewAssignment.applyDefaults()
 }
 
 // HasPlugin reports whether the named plugin is enabled.

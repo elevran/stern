@@ -15,9 +15,15 @@ import (
 )
 
 // prClient is the minimum Client surface the PR event handlers use.
+// It mirrors the parts of github.Client needed by HandlePREventWIP,
+// HandlePREventSize, InvalidateLGTMOnPush, InvalidateApproveOnPush, and
+// HandlePREventReviewAssignment.
 type prClient interface {
 	github.LabelsClient
 	github.PullRequestsClient
+	github.UsersClient
+	github.CommentsClient
+	github.ContentClient
 }
 
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
@@ -66,6 +72,14 @@ func HandlePREvent(ctx context.Context, ghc prClient, org, repo string, evt *eve
 		}
 		if err := InvalidateApproveOnPush(ctx, ghc, org, repo, p, opts); err != nil {
 			log.WithError(err).Warn("approve invalidation failed")
+		}
+	}
+
+	// Review assignment runs only on the initial open of a PR, not on
+	// reopened or synchronize.
+	if action == "opened" {
+		if err := HandlePREventReviewAssignment(ctx, ghc, org, repo, p, opts); err != nil {
+			log.WithError(err).Warn("review assignment failed")
 		}
 	}
 
