@@ -130,6 +130,50 @@ func TestInvalidateApproveOnPush(t *testing.T) {
 	}
 }
 
+func TestInvalidateApproveOnPush_DismissesBotReview(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.IssueLabels[1] = map[string]bool{"approved": true}
+	ghc.Reviews[1] = []github.Review{{ID: 7, State: "APPROVED", Login: "stern-bot"}}
+	p := github.PullRequest{
+		Number: 1,
+		Labels: []string{"approved"},
+	}
+	opts := &config.Options{
+		BotLogin: "stern-bot",
+		Approve:  config.ApproveOptions{InvalidateOnPush: true},
+	}
+
+	if err := pr.InvalidateApproveOnPush(context.Background(), ghc, "o", "r", p, opts); err != nil {
+		t.Fatalf("InvalidateApproveOnPush() error = %v", err)
+	}
+	if len(ghc.ReviewsDismissed) != 1 || ghc.ReviewsDismissed[0] != 7 {
+		t.Errorf("expected DismissPullRequestReview called with id 7, got %v", ghc.ReviewsDismissed)
+	}
+	if got := ghc.Reviews[1][0].State; got != "DISMISSED" {
+		t.Errorf("expected review state DISMISSED, got %q", got)
+	}
+}
+
+func TestInvalidateApproveOnPush_NoBotReview(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.IssueLabels[1] = map[string]bool{"approved": true}
+	p := github.PullRequest{
+		Number: 1,
+		Labels: []string{"approved"},
+	}
+	opts := &config.Options{
+		BotLogin: "stern-bot",
+		Approve:  config.ApproveOptions{InvalidateOnPush: true},
+	}
+
+	if err := pr.InvalidateApproveOnPush(context.Background(), ghc, "o", "r", p, opts); err != nil {
+		t.Fatalf("InvalidateApproveOnPush() error = %v", err)
+	}
+	if len(ghc.ReviewsDismissed) != 0 {
+		t.Errorf("expected NO DismissPullRequestReview when bot has no review, got %v", ghc.ReviewsDismissed)
+	}
+}
+
 func TestHandlePREvent_BotSuffixSkipped(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.PullRequests[1] = &github.PullRequest{

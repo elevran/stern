@@ -18,6 +18,7 @@ import (
 type prClient interface {
 	github.LabelsClient
 	github.PullRequestsClient
+	github.ReviewsClient
 }
 
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
@@ -128,5 +129,18 @@ func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string
 	if err := ghc.RemoveLabel(ctx, org, repo, p.Number, labels.Approved); err != nil && !github.IsNotFoundError(err) {
 		return err
 	}
-	return merge.DisableAutoMerge(ctx, ghc, p.NodeID)
+	if err := merge.DisableAutoMerge(ctx, ghc, p.NodeID); err != nil {
+		return err
+	}
+	reviews, err := ghc.ListPullRequestReviews(ctx, org, repo, p.Number)
+	if err != nil {
+		logrus.WithError(err).Warn("approve-invalidate: list reviews failed")
+		return nil
+	}
+	if r := FindBotApprovedReview(reviews, opts.BotLogin); r != nil {
+		if err := ghc.DismissPullRequestReview(ctx, org, repo, p.Number, r.ID, "approval invalidated by push"); err != nil {
+			logrus.WithError(err).Warn("approve-invalidate: dismiss review failed")
+		}
+	}
+	return nil
 }
