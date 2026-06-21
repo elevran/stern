@@ -1,5 +1,17 @@
 version: "2"
 
+run:
+  issues-exit-code: 1
+  tests: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+
 linters:
   default: none
   enable:
@@ -8,3 +20,4 @@ linters:
     - ineffassign
     - unused
     - errcheck
+    - misspell
