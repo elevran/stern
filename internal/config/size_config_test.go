@@ -113,6 +113,28 @@ func TestSizeValidate_OpenEndedNoOverlap(t *testing.T) {
 	}
 }
 
+func TestSizeValidate_TwoOpenUpperBoundsOverlap(t *testing.T) {
+	o := &config.Options{
+		Merge: config.MergeOptions{Strategy: "native", Method: "squash", BlockingLabels: []string{"x"}},
+		Size: config.SizeOptions{
+			Buckets: []config.SizeBucket{
+				{Name: "A", Max: 5},
+				{Name: "B", Max: 10},
+			},
+		},
+	}
+	errs := o.Validate()
+	hasErr := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "overlap") && strings.Contains(e.Error(), "ERROR") {
+			hasErr = true
+		}
+	}
+	if !hasErr {
+		t.Errorf("expected ERROR for two open-upper-bound buckets that overlap, got %v", errs)
+	}
+}
+
 func TestSizeValidate_EnabledButEmpty(t *testing.T) {
 	o := &config.Options{
 		Plugins: []string{"size"},

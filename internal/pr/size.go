@@ -9,9 +9,6 @@ import (
 	"github.com/elevran/stern/internal/labels"
 )
 
-// sizeLabelPrefix is the prefix used to recognise prior size/* labels.
-const sizeLabelPrefix = labels.SizePrefix
-
 // BucketForSize returns the bucket name whose [Min, Max] inclusive range
 // contains the given line count. Min == 0 means no lower bound, Max == 0
 // means no upper bound. Returns "" if no bucket matches.
@@ -40,12 +37,12 @@ func HandlePREventSize(ctx context.Context, ghc prClient, org, repo string, p gi
 		return nil
 	}
 	for _, l := range p.Labels {
-		if !strings.HasPrefix(l, sizeLabelPrefix) {
+		if !strings.HasPrefix(l, labels.SizePrefix) {
 			continue
 		}
 		if err := ghc.RemoveLabel(ctx, org, repo, p.Number, l); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
 	}
-	return ghc.AddLabels(ctx, org, repo, p.Number, []string{sizeLabelPrefix + bucket})
+	return ghc.AddLabels(ctx, org, repo, p.Number, []string{labels.SizePrefix + bucket})
 }

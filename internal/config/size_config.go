@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // SizeOptions configures the automatic size/* label plugin.
 type SizeOptions struct {
@@ -70,18 +73,22 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 			})
 		}
 	}
-	// Check overlap only when both endpoints are set on each bucket.
+	// Overlap check. Unset Max means unbounded — treat as math.MaxInt so two
+	// open-lower-bound buckets (e.g. two `{Max:N}` entries) don't silently
+	// overlap.
 	for i := range o.Buckets {
 		a := o.Buckets[i]
-		if a.Min == 0 || a.Max == 0 {
-			continue
+		aMax := a.Max
+		if aMax == 0 {
+			aMax = math.MaxInt
 		}
 		for j := i + 1; j < len(o.Buckets); j++ {
 			b := o.Buckets[j]
-			if b.Min == 0 || b.Max == 0 {
-				continue
+			bMax := b.Max
+			if bMax == 0 {
+				bMax = math.MaxInt
 			}
-			if rangesOverlap(a.Min, a.Max, b.Min, b.Max) {
+			if a.Min <= bMax && b.Min <= aMax {
 				issues = append(issues, ValidationIssue{
 					Level: "ERROR",
 					Field: fieldPath("size.buckets", i, ""),
@@ -94,11 +101,6 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 		}
 	}
 	return issues
-}
-
-// rangesOverlap reports whether two integer intervals overlap (inclusive).
-func rangesOverlap(aMin, aMax, bMin, bMax int) bool {
-	return aMin <= bMax && bMin <= aMax
 }
 
 // fieldPath builds a "size.buckets[N].suffix" style path for validation messages.
