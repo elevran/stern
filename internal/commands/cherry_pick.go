@@ -49,7 +49,17 @@ func NewCherryPickHandler(_ *event.Context, ghc github.Client, opts *config.Opti
 // gitExec runs git with the given args. It is a package-level var so tests
 // can replace it with a stub. Stdout/stderr are forwarded so failures are
 // visible in the Actions log.
+//
+// Safe re: gosec G204 (subprocess launched with variable):
+//  1. The binary is the constant "git", never user input.
+//  2. exec.Command passes argv directly to fork+execve — no shell is
+//     invoked, so metacharacters in args have no special meaning.
+//  3. The only user-supplied arg that flows here is the target branch,
+//     which Pre validates against allowedPattern (operator-configured
+//     regex in .github/stern.yaml) before this function is reachable.
 var gitExec = func(args ...string) error {
+	// #nosec G204 -- see comment above: constant binary, argv-only spawn,
+	// pre-validated args.
 	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
