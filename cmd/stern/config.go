@@ -89,9 +89,10 @@ func newConfigInitCmd() *cobra.Command {
 
 func newConfigCheckCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:          "check",
-		Short:        "Validate stern.yaml and report all issues",
-		SilenceUsage: true,
+		Use:           "check",
+		Short:         "Validate stern.yaml and report all issues",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			issues := globalOpts.Validate()
 			if len(issues) == 0 {
@@ -109,7 +110,11 @@ func newConfigCheckCmd() *cobra.Command {
 			}
 			fmt.Println()
 			if hasError {
-				return fmt.Errorf("validation failed")
+				// Use os.Exit(1) rather than returning an error so Cobra does
+				// not print its own "Error: ..." line after our validation output
+				// (#18). SilenceErrors also suppresses that line, but exiting
+				// directly avoids the RunE error path entirely.
+				os.Exit(1)
 			}
 			return nil
 		},
