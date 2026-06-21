@@ -158,3 +158,47 @@ func TestLoadForPaths_NormalPathStillWorks(t *testing.T) {
 		t.Error("expected alice from root OWNERS for normal paths")
 	}
 }
+
+// TestLoadForPaths_SortedApproversAndReviewers verifies that the Approvers and
+// Reviewers slices are returned in ascending sorted order regardless of the
+// order in which the OWNERS file was read or the order in which approvers
+// were added to the set. The behavior was changed in #78 to use
+// slices.Sorted(maps.Keys(...)) for deterministic ordering.
+func TestLoadForPaths_SortedApproversAndReviewers(t *testing.T) {
+	ghc := github.NewMockClient()
+	// Intentionally list approvers/reviewers in non-alphabetical order so
+	// unsorted output would not match the expected result.
+	ghc.FileContent["OWNERS@sha"] = []byte(`approvers:
+  - zoe
+  - alice
+  - mike
+reviewers:
+  - yara
+  - bob
+`)
+
+	result, err := owners.LoadForPaths(context.Background(), ghc, "o", "r", "sha", []string{"main.go"})
+	if err != nil {
+		t.Fatalf("LoadForPaths() error = %v", err)
+	}
+	wantApprovers := []string{"alice", "mike", "zoe"}
+	if got := result.Approvers; !equalStrings(got, wantApprovers) {
+		t.Errorf("Approvers = %v, want %v (sorted ascending)", got, wantApprovers)
+	}
+	wantReviewers := []string{"bob", "yara"}
+	if got := result.Reviewers; !equalStrings(got, wantReviewers) {
+		t.Errorf("Reviewers = %v, want %v (sorted ascending)", got, wantReviewers)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
