@@ -118,6 +118,40 @@ func TestValidate_AllIssuesCollected(t *testing.T) {
 	}
 }
 
+func TestValidate_LoadBalancing(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{"empty (unset)", "", false},
+		{"round-robin", "round-robin", false},
+		{"least-busy", "least-busy", false},
+		{"typo with underscore", "round_robin", true},
+		{"unknown value", "random", true},
+		{"uppercase", "Round-Robin", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.ReviewAssignment.LoadBalancing = tt.value
+			errs := opts.Validate()
+			hasErr := false
+			for _, e := range errs {
+				if strings.Contains(e.Error(), "review_assignment.load_balancing") {
+					hasErr = true
+				}
+			}
+			if tt.wantErr && !hasErr {
+				t.Errorf("expected ERROR for load_balancing=%q, got: %v", tt.value, errs)
+			}
+			if !tt.wantErr && hasErr {
+				t.Errorf("expected no ERROR for load_balancing=%q, got: %v", tt.value, errs)
+			}
+		})
+	}
+}
+
 func TestValidate_WarnOnlyExits0(t *testing.T) {
 	opts := validOptions()
 	opts.Merge.Strategy = "native"
