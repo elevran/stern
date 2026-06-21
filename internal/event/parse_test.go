@@ -78,3 +78,26 @@ func TestOrgRepoFromEnv_Missing(t *testing.T) {
 		t.Fatal("expected error when GITHUB_REPOSITORY is empty")
 	}
 }
+
+func TestIsBot(t *testing.T) {
+	cases := []struct {
+		name     string
+		sender   string
+		botLogin string
+		want     bool
+	}{
+		{"github-actions app suffix", "github-actions[bot]", "stern-bot", true},
+		{"exact bot login", "stern-bot", "stern-bot", true},
+		{"non-bot user", "alice", "stern-bot", false},
+		{"user named 'alicebot' is not a bot", "alicebot", "stern-bot", false},
+		{"empty sender", "", "stern-bot", false},
+		{"empty bot login with bot suffix", "github-actions[bot]", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := IsBot(c.sender, c.botLogin); got != c.want {
+				t.Errorf("IsBot(%q, %q) = %v, want %v", c.sender, c.botLogin, got, c.want)
+			}
+		})
+	}
+}
