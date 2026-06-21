@@ -183,3 +183,33 @@ func TestHandlePREvent_BotLoginSkipped(t *testing.T) {
 		t.Error("expected no label mutations for configured bot login")
 	}
 }
+
+// TestPREventHandler_Handle_BotSuffixSkipped exercises the new
+// (*PREventHandler).Handle entry point and confirms the bot-guard
+// short-circuit is preserved when the method-based API is used.
+func TestPREventHandler_Handle_BotSuffixSkipped(t *testing.T) {
+	ghc := github.NewMockClient()
+	ghc.PullRequests[1] = &github.PullRequest{
+		Number: 1,
+		Title:  "[WIP] bot PR",
+		Labels: []string{},
+	}
+	evt := &gh.PullRequestEvent{
+		Action: gh.Ptr("synchronize"),
+		Sender: &gh.User{Login: gh.Ptr("some-bot[bot]")},
+		PullRequest: &gh.PullRequest{
+			Number: gh.Ptr(1),
+			Title:  gh.Ptr("[WIP] bot PR"),
+			Draft:  gh.Ptr(false),
+			Labels: []*gh.Label{},
+		},
+	}
+
+	handler := pr.NewPREventHandler(ghc, &config.Options{})
+	if err := handler.Handle(context.Background(), "o", "r", evt); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(ghc.IssueLabels) > 0 {
+		t.Error("expected no label mutations for bot-sender event via PREventHandler")
+	}
+}
