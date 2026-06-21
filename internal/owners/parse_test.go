@@ -199,4 +199,3 @@ func TestLoadForPaths_MalformedYAMLDoesNotBlockOtherFiles(t *testing.T) {
 	require.NoError(t, err, "LoadForPaths() should not return an error for malformed YAML")
 	assert.True(t, result.IsApprover("bob"), "expected bob from pkg/OWNERS to still resolve despite root OWNERS being malformed")
 }
-

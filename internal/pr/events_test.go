@@ -181,4 +181,3 @@ func TestPREventHandler_Handle_BotSuffixSkipped(t *testing.T) {
 	require.NoError(t, handler.Handle(context.Background(), "o", "r", evt))
 	assert.Empty(t, ghc.IssueLabels, "expected no label mutations for bot-sender event via PREventHandler")
 }
-

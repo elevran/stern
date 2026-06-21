@@ -145,4 +145,3 @@ func TestActionsRunURL(t *testing.T) {
 		assert.Empty(t, ActionsRunURL())
 	})
 }
-
