@@ -2,9 +2,12 @@ package owners
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/elevran/stern/internal/github"
@@ -52,6 +55,7 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 			}
 			var f File
 			if err := yaml.Unmarshal(data, &f); err != nil {
+				logrus.WithError(err).WithField("path", ownersPath).Warn("OWNERS file exists but could not be parsed; owners for this directory will be skipped")
 				continue
 			}
 			for _, a := range f.Approvers {
@@ -68,8 +72,8 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 	}
 
 	return &ResolvedOwners{
-		Approvers: setToSlice(approverSet),
-		Reviewers: setToSlice(reviewerSet),
+		Approvers: slices.Sorted(maps.Keys(approverSet)),
+		Reviewers: slices.Sorted(maps.Keys(reviewerSet)),
 	}, nil
 }
 
@@ -152,12 +156,4 @@ func expandAlias(name string, aliases *Aliases) []string {
 		return members
 	}
 	return []string{name}
-}
-
-func setToSlice(s map[string]bool) []string {
-	result := make([]string, 0, len(s))
-	for k := range s {
-		result = append(result, k)
-	}
-	return result
 }
