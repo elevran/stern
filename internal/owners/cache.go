@@ -103,10 +103,6 @@ var ambientCache *FileCache
 // be invasive.
 func SetAmbientCache(c *FileCache) { ambientCache = c }
 
-// AmbientCache returns the currently-installed ambient cache, or nil when
-// no caller has set one.
-func AmbientCache() *FileCache { return ambientCache }
-
 // effectiveCache returns the explicit cache when non-nil, otherwise the
 // ambient one. Centralised so the various helpers stay consistent.
 func effectiveCache(c *FileCache) *FileCache {

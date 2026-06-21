@@ -98,14 +98,15 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, cache *FileCach
 // present, otherwise falls through to the live API and stores the result.
 // A nil cache is a no-op wrapper — FileCache.get/set are nil-safe.
 func cachedGetFileContent(ctx context.Context, ghc github.ContentClient, cache *FileCache, owner, repo, filePath, ref string) ([]byte, error) {
-	if data, ok := cache.get(cacheKey(owner, repo, ref, filePath)); ok {
+	key := cacheKey(owner, repo, ref, filePath)
+	if data, ok := cache.get(key); ok {
 		return data, nil
 	}
 	data, err := ghc.GetFileContent(ctx, owner, repo, filePath, ref)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(cacheKey(owner, repo, ref, filePath), data)
+	cache.set(key, data)
 	return data, nil
 }
 
