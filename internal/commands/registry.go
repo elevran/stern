@@ -31,11 +31,6 @@ type HandlerFactory func(sc *event.Context, ghc github.Client, opts *config.Opti
 // Registry maps command verbs to handler factories.
 type Registry map[string]HandlerFactory
 
-// nopPost provides a no-op Post implementation for handlers with no post-processing.
-type nopPost struct{}
-
-func (nopPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
-
 // labelMutatingBase implements Post for handlers that mutate labels.
 // It fetches a fresh PR and re-evaluates auto-merge eligibility after every
 // successful Handle call.
@@ -157,7 +152,10 @@ func newPingHandler(_ *event.Context, _ github.Client, _ *config.Options) Handle
 }
 
 // pingHandler handles /ping — confirms the bot is alive.
-type pingHandler struct{ nopPost }
+type pingHandler struct{}
 
 func (h *pingHandler) Pre(_ context.Context, _ *event.Context, _ []string) error    { return nil }
 func (h *pingHandler) Handle(_ context.Context, _ *event.Context, _ []string) error { return nil }
+func (h *pingHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
+}
