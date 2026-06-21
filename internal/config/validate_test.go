@@ -186,5 +186,9 @@ func validOptions() *config.Options {
 			Method:         "squash",
 			BlockingLabels: []string{"do-not-merge/hold"},
 		},
+		Lifecycle: config.LifecycleOptions{
+			StaleDays:  90,
+			RottenDays: 30,
+		},
 	}
 }
