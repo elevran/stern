@@ -24,6 +24,7 @@ type Options struct {
 	Kind             KindOptions             `yaml:"kind"`
 	Area             AreaOptions             `yaml:"area"`
 	Priority         PriorityOptions         `yaml:"priority"`
+	Size             SizeOptions             `yaml:"size"`
 
 	LabelDefinitions []LabelDefinition `yaml:"label_definitions"`
 }
@@ -49,6 +50,7 @@ func (o *Options) applyDefaults() {
 	o.Merge.applyDefaults()
 	o.CherryPick.applyDefaults()
 	o.Lifecycle.applyDefaults()
+	o.Size.applyDefaults()
 }
 
 // HasPlugin reports whether the named plugin is enabled.

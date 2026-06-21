@@ -9,13 +9,15 @@ import (
 
 // PullRequest is a slim representation of a GitHub pull request.
 type PullRequest struct {
-	Number  int
-	Author  string
-	Title   string
-	IsDraft bool
-	Labels  []string // label names only
-	NodeID  string
-	HeadSHA string
+	Number    int
+	Author    string
+	Title     string
+	IsDraft   bool
+	Labels    []string // label names only
+	NodeID    string
+	HeadSHA   string
+	Additions int // lines added in the PR diff
+	Deletions int // lines removed in the PR diff
 }
 
 // Label represents a GitHub repository label.
@@ -62,13 +64,15 @@ func PullRequestFromGH(pr *gh.PullRequest) PullRequest {
 		author = pr.User.GetLogin()
 	}
 	return PullRequest{
-		Number:  pr.GetNumber(),
-		Author:  author,
-		Title:   pr.GetTitle(),
-		IsDraft: pr.GetDraft(),
-		Labels:  labels,
-		NodeID:  pr.GetNodeID(),
-		HeadSHA: headSHA,
+		Number:    pr.GetNumber(),
+		Author:    author,
+		Title:     pr.GetTitle(),
+		IsDraft:   pr.GetDraft(),
+		Labels:    labels,
+		NodeID:    pr.GetNodeID(),
+		HeadSHA:   headSHA,
+		Additions: pr.GetAdditions(),
+		Deletions: pr.GetDeletions(),
 	}
 }
 

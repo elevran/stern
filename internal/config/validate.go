@@ -48,6 +48,7 @@ func (o *Options) Validate() []error {
 	issues = append(issues, o.Kind.validate(o.HasPlugin("kind"))...)
 	issues = append(issues, o.Area.validate(o.HasPlugin("area"))...)
 	issues = append(issues, o.Priority.validate(o.HasPlugin("priority"))...)
+	issues = append(issues, o.Size.validate(o.HasPlugin("size"))...)
 
 	errs := make([]error, len(issues))
 	for i, issue := range issues {
