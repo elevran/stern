@@ -60,22 +60,7 @@ func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Conte
 	if !h.opts.Approve.RequireOwner {
 		return nil
 	}
-	if sc.PR.HeadSHA == "" {
-		return nil
-	}
-	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
-	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
-	if err != nil {
-		return err
-	}
-	if !resolved.HasOwners() {
-		return nil
-	}
-	if !resolved.IsApprover(sc.Author) {
-		return PermissionError("%s is not in the OWNERS approvers list for this PR's changed files", sc.Author)
-	}
-	return nil
+	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
+		return r.IsApprover(sc.Author)
+	}, "%s is not in the OWNERS approvers list for this PR's changed files")
 }

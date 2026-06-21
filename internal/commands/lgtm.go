@@ -57,22 +57,7 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
-	if sc.PR.HeadSHA == "" {
-		return nil
-	}
-	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
-	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
-	if err != nil {
-		return err
-	}
-	if !resolved.HasOwners() {
-		return nil
-	}
-	if !resolved.IsReviewer(sc.Author) && !resolved.IsApprover(sc.Author) {
-		return PermissionError("%s is not in the OWNERS reviewers list for this PR's changed files", sc.Author)
-	}
-	return nil
+	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
+		return r.IsReviewer(sc.Author) || r.IsApprover(sc.Author)
+	}, "%s is not in the OWNERS reviewers list for this PR's changed files")
 }
