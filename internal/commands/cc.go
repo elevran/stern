@@ -8,15 +8,9 @@ import (
 	"github.com/elevran/stern/internal/github"
 )
 
-// ccClient is the minimum Client surface CCHandler uses.
-type ccClient interface {
-	github.PermissionsClient
-	github.UsersClient
-}
-
 // CCHandler handles /cc and /uncc.
 type CCHandler struct {
-	ghc  ccClient
+	ghc  userCommandClient
 	verb string // "cc" or "uncc"
 }
 
