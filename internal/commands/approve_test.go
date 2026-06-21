@@ -91,10 +91,12 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
-	// Pre-load the PR with lgtm already present.
-	ghc.PullRequests[1].Labels = []string{"lgtm"}
-	// After approve, GetPullRequest will return the updated PR.
-	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
+	// Pre-load the PR with both labels so Post's re-check via GetPullRequest
+	// sees an eligible PR and triggers EnableAutoMerge. The mock's AddLabels
+	// does not sync back into PullRequests[1].Labels, so we set the final
+	// state here.
+	ghc.PullRequests[1].Labels = []string{"lgtm", "approved"}
+	ghc.IssueLabels[1] = map[string]bool{"lgtm": true, "approved": true}
 	// No OWNERS files: any commenter can approve.
 
 	reg := commands.Registry{"approve": commands.NewApproveHandler}
@@ -106,6 +108,9 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 
 	if !ghc.IssueLabels[1]["approved"] {
 		t.Error("expected approved label added")
+	}
+	if ghc.EnableAutoMergeCallCount != 1 {
+		t.Errorf("expected EnableAutoMergeCallCount=1 after both labels present, got %d", ghc.EnableAutoMergeCallCount)
 	}
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
 		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
