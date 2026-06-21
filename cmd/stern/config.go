@@ -103,23 +103,23 @@ func newConfigCheckCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			issues := globalOpts.Validate()
 			if len(issues) == 0 {
-				fmt.Fprintf(out, "%s — No issues found\n", configPath)
+				_, _ = fmt.Fprintf(out, "%s — No issues found\n", configPath)
 				return nil
 			}
-			fmt.Fprintf(out, "%s — %d issue(s) found\n\n", configPath, len(issues))
+			_, _ = fmt.Fprintf(out, "%s — %d issue(s) found\n\n", configPath, len(issues))
 			hasError := false
 			for _, e := range issues {
 				switch e.Level {
 				case "ERROR":
-					errorColor.Fprintf(out, "  ERROR  %s: %s\n", e.Field, e.Message)
+					_, _ = errorColor.Fprintf(out, "  ERROR  %s: %s\n", e.Field, e.Message)
 					hasError = true
 				case "WARN":
-					warnColor.Fprintf(out, "  WARN   %s: %s\n", e.Field, e.Message)
+					_, _ = warnColor.Fprintf(out, "  WARN   %s: %s\n", e.Field, e.Message)
 				default:
-					fmt.Fprintf(out, "  %s\n", e.Error())
+					_, _ = fmt.Fprintf(out, "  %s\n", e.Error())
 				}
 			}
-			fmt.Fprintln(out)
+			_, _ = fmt.Fprintln(out)
 			if hasError {
 				// Use os.Exit(1) rather than returning an error so Cobra does
 				// not print its own "Error: ..." line after our validation output
