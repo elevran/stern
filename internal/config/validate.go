@@ -42,6 +42,7 @@ func (o *Options) Validate() []error {
 	issues = append(issues, o.Merge.validate()...)
 	issues = append(issues, o.CherryPick.validate(o.HasPlugin("cherry-pick"))...)
 	issues = append(issues, o.Lifecycle.validate()...)
+	issues = append(issues, o.ReviewAssignment.validate()...)
 
 	errs := make([]error, len(issues))
 	for i, issue := range issues {
