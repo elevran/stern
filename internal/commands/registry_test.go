@@ -151,9 +151,21 @@ func TestDispatch_PluginNotEnabled(t *testing.T) {
 	}
 }
 
+func TestDispatch_BuiltinIgnoresPlugins(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{Plugins: []string{"lgtm"}}
+	sc := newSternContext()
+
+	reg := commands.DefaultRegistry()
+	commands.Dispatch(context.Background(), sc, "/ping", reg, ghc, opts)
+
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction from /ping with restricted plugins, got %v", ghc.Reactions)
+	}
+}
+
 // spyHandler records whether Handle was called.
 type spyHandler struct {
-	nopSpyPost
 	onHandle func() error
 }
 
@@ -161,11 +173,9 @@ func (h *spyHandler) Pre(_ context.Context, _ *event.Context, _ []string) error 
 func (h *spyHandler) Handle(_ context.Context, _ *event.Context, _ []string) error {
 	return h.onHandle()
 }
-
-// nopSpyPost mirrors commands.nopPost without exporting the type.
-type nopSpyPost struct{}
-
-func (nopSpyPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
+func (h *spyHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
+}
 
 // denyHandler always returns a permission error from Pre.
 type denyHandler struct{}

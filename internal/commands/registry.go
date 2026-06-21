@@ -35,11 +35,6 @@ type nopPost struct{}
 
 func (nopPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
 
-// builtinVerbs are always dispatched regardless of plugin configuration.
-var builtinVerbs = map[string]bool{
-	"ping": true,
-}
-
 // ErrPermission represents a permission-denied or validation error from a handler.
 type ErrPermission struct {
 	message string
@@ -91,7 +86,7 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 			continue
 		}
 
-		if !builtinVerbs[verb] && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
+		if verb != "ping" && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
 			log.WithField("command", "/"+verb).Info("plugin not enabled")
 			continue
 		}
