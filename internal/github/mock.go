@@ -32,14 +32,14 @@ type MockClient struct {
 	IssueClosed        []int    // issue numbers passed to CloseIssue
 	IssueReopened      []int    // issue numbers passed to ReopenIssue
 	MilestoneSet       []MilestoneSetRecord
-	MilestoneCleared   []int   // issue numbers passed to ClearMilestone
+	MilestoneCleared   []int // issue numbers passed to ClearMilestone
 	AssigneesAdded     []UsersRecord
 	AssigneesRemoved   []UsersRecord
 	ReviewersRequested []UsersRecord
 	ReviewersRemoved   []UsersRecord
-	RerunCheckRuns   []int64        // check run IDs passed to RerunCheckRun
-	ReviewsPosted    []ReviewRecord
-	ReviewsDismissed []int64 // reviewIDs passed to DismissPullRequestReview
+	RerunCheckRuns     []int64 // check run IDs passed to RerunCheckRun
+	ReviewsPosted      []ReviewRecord
+	ReviewsDismissed   []int64 // reviewIDs passed to DismissPullRequestReview
 
 	// Return errors for specific method names.
 	Errors map[string]error
