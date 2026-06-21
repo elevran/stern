@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
@@ -42,7 +41,7 @@ func (h *CCHandler) Pre(_ context.Context, sc *event.Context, args []string) err
 func (h *CCHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	users, err := parseUsers(args, "")
 	if err != nil {
-		return fmt.Errorf("usage: /%s @user [@user ...]", h.verb)
+		return PermissionError("usage: /%s @user [@user ...]", h.verb)
 	}
 	if h.verb == "uncc" {
 		return h.ghc.RemoveReviewers(ctx, sc.Org, sc.Repo, sc.IssueNumber, users)
