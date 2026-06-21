@@ -15,35 +15,25 @@ type PriorityOptions struct {
 	Values []string `yaml:"values"` // e.g. [P0, P1, P2]
 }
 
-func (o *KindOptions) validate(pluginEnabled bool) []ValidationIssue {
-	if pluginEnabled && len(o.Values) == 0 {
+func validateLabelValues(field string, values []string, enabled bool) []ValidationIssue {
+	if enabled && len(values) == 0 {
 		return []ValidationIssue{{
 			Level:   "WARN",
-			Field:   "kind.values",
-			Message: "kind plugin is enabled but values list is empty",
+			Field:   field,
+			Message: field + " plugin is enabled but values list is empty",
 		}}
 	}
 	return nil
+}
+
+func (o *KindOptions) validate(pluginEnabled bool) []ValidationIssue {
+	return validateLabelValues("kind", o.Values, pluginEnabled)
 }
 
 func (o *AreaOptions) validate(pluginEnabled bool) []ValidationIssue {
-	if pluginEnabled && len(o.Values) == 0 {
-		return []ValidationIssue{{
-			Level:   "WARN",
-			Field:   "area.values",
-			Message: "area plugin is enabled but values list is empty",
-		}}
-	}
-	return nil
+	return validateLabelValues("area", o.Values, pluginEnabled)
 }
 
 func (o *PriorityOptions) validate(pluginEnabled bool) []ValidationIssue {
-	if pluginEnabled && len(o.Values) == 0 {
-		return []ValidationIssue{{
-			Level:   "WARN",
-			Field:   "priority.values",
-			Message: "priority plugin is enabled but values list is empty",
-		}}
-	}
-	return nil
+	return validateLabelValues("priority", o.Values, pluginEnabled)
 }
