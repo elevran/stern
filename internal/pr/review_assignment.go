@@ -13,21 +13,12 @@ import (
 	"github.com/elevran/stern/internal/owners"
 )
 
-// reviewAssignmentClient is the minimum Client surface that
-// HandlePREventReviewAssignment needs to load OWNERS files and request reviews.
-type reviewAssignmentClient interface {
-	github.ContentClient
-	github.UsersClient
-	github.CommentsClient
-	github.PullRequestsClient
-}
-
 // HandlePREventReviewAssignment auto-assigns reviewers from OWNERS files when
 // a PR is opened. Reviewers are selected deterministically (sorted, then the
 // first Count candidates are chosen). The PR author is always excluded. The
 // "least-busy" load-balancing strategy is logged as not yet implemented and
 // falls back to the deterministic round-robin-style selection.
-func HandlePREventReviewAssignment(ctx context.Context, ghc reviewAssignmentClient, org, repo string, p github.PullRequest, opts *config.Options) error {
+func HandlePREventReviewAssignment(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	if !opts.ReviewAssignment.Enabled {
 		return nil
 	}
@@ -73,9 +64,6 @@ func HandlePREventReviewAssignment(ctx context.Context, ghc reviewAssignmentClie
 
 	sort.Strings(candidates)
 	n := opts.ReviewAssignment.Count
-	if n <= 0 {
-		n = 1
-	}
 	if n > len(candidates) {
 		n = len(candidates)
 	}

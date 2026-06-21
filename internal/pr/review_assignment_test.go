@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -31,16 +31,6 @@ func captureLogger(fn func()) string {
 // exercise code paths which log info/warn messages.
 func quietLogger() {
 	logrus.SetOutput(io.Discard)
-}
-
-// hasMsg reports whether s contains a line containing substr.
-func hasMsg(s, substr string) bool {
-	for _, line := range bytes.Split([]byte(s), []byte("\n")) {
-		if bytes.Contains(line, []byte(substr)) {
-			return true
-		}
-	}
-	return false
 }
 
 func reviewAssignmentOpts(enabled bool, count int, loadBalancing string) *config.Options {
@@ -237,9 +227,7 @@ func TestHandlePREventReviewAssignment_LeastBusyLogsInfoAndFallsBack(t *testing.
 			t.Errorf("RequestReviewers users = %v, want [alice bob] (sorted, first Count)", got.Users)
 		}
 	})
-	if !hasMsg(out, "least-busy strategy not yet implemented") {
+	if !strings.Contains(out, "least-busy strategy not yet implemented") {
 		t.Errorf("expected INFO log about least-busy fallback, got: %q", out)
 	}
-	// belt-and-braces: ensure logrus didn't fall back to the stdlib logger.
-	_ = log.Println
 }
