@@ -23,3 +23,4 @@ linters:
     - misspell
     - gosec
     - noctx
+    - bodyclose
