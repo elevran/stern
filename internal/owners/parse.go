@@ -174,9 +174,13 @@ func UncoveredFiles(
 //
 // Non-404 errors abort the walk and surface to the caller — treating a
 // transient API failure as "no OWNERS here" would silently widen authority.
+//
+// Reads go through cachedGetFileContent so the ambient cache (installed by
+// cmd/stern) is consulted. The cache applies to /approve via UncoveredFiles
+// as well as /lgtm via LoadForPaths.
 func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, ref, path, login string, aliases *Aliases) (bool, error) {
 	for _, dir := range ancestorDirs(path) {
-		data, err := ghc.GetFileContent(ctx, owner, repo, ownersFilePath(dir), ref)
+		data, err := cachedGetFileContent(ctx, ghc, nil, owner, repo, ownersFilePath(dir), ref)
 		if err != nil {
 			if !github.IsNotFoundError(err) {
 				return false, fmt.Errorf("loading %s@%s: %w", ownersFilePath(dir), ref, err)

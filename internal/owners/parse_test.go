@@ -326,3 +326,34 @@ func TestLoadForPaths_AliasesLoadErrorFailsClosed(t *testing.T) {
 	require.Error(t, err, "expected OWNERS_ALIASES load failure to propagate")
 	assert.Contains(t, err.Error(), "rate limit hit")
 }
+
+// TestUncoveredFiles_RespectsAmbientCache verifies that coveredByLogin
+// consults the ambient cache (when set), not just the live API. This
+// guards against a future refactor that bypasses cachedGetFileContent
+// from the /approve path.
+func TestUncoveredFiles_RespectsAmbientCache(t *testing.T) {
+	ghc := github.NewMockClient()
+	// Pre-populate dir/OWNERS so coveredByLogin has something to fetch.
+	ghc.FileContent["OWNERS_ALIASES@sha"] = []byte("aliases: {}\n")
+	ghc.FileContent["dir/OWNERS@sha"] = []byte("approvers:\n  - alice\n")
+
+	// Pre-warm a cache with the same content.
+	cache, err := owners.LoadCacheFile("")
+	require.NoError(t, err)
+	owners.SetAmbientCache(cache)
+	defer owners.SetAmbientCache(nil) // restore for other tests
+
+	// First call populates the cache via cachedGetFileContent.
+	_, err = owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir/f.go"})
+	require.NoError(t, err)
+
+	// Now wipe the mock so the API would 404 on any further call.
+	delete(ghc.FileContent, "dir/OWNERS@sha")
+
+	// Second call must hit the cache and still find alice as approver.
+	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+		[]string{"dir/f.go"})
+	require.NoError(t, err)
+	assert.Empty(t, uncovered, "coveredByLogin must consult the ambient cache, not just the live API")
+}
