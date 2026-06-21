@@ -32,7 +32,7 @@ func parseEvent[T any]() (*T, error) {
 	if path == "" {
 		return nil, fmt.Errorf("GITHUB_EVENT_PATH is not set")
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304,G703 -- path is set by GitHub Actions in the runner environment
 	if err != nil {
 		return nil, fmt.Errorf("reading event file %s: %w", path, err)
 	}

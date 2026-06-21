@@ -31,7 +31,7 @@ type Options struct {
 
 // LoadFromFile reads and parses a stern YAML config file.
 func LoadFromFile(path string) (*Options, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304,G703 -- path is supplied by the operator
 	if err != nil {
 		return nil, fmt.Errorf("reading config %s: %w", path, err)
 	}

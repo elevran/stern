@@ -65,10 +65,10 @@ func newConfigInitCmd() *cobra.Command {
 				}
 			}
 
-			if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil { // #nosec G301 -- config dir, not sensitive
 				return err
 			}
-			if err := os.WriteFile(output, data, 0o644); err != nil {
+			if err := os.WriteFile(output, data, 0o644); err != nil { // #nosec G306 -- generated config, not sensitive
 				return err
 			}
 

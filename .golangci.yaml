@@ -21,3 +21,5 @@ linters:
     - unused
     - errcheck
     - misspell
+    - gosec
+    - noctx
