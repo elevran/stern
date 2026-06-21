@@ -15,6 +15,8 @@ import (
 	"context"
 	"time"
 
+	"slices"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/elevran/stern/internal/config"
@@ -65,7 +67,7 @@ func processItem(ctx context.Context, ghc sweepClient, org, repo string, item gi
 		cfg = opts.Lifecycle.ForIssues()
 	}
 
-	if hasLabel(item.Labels, labels.LifecycleFrozen) {
+	if slices.Contains(item.Labels, labels.LifecycleFrozen) {
 		return nil
 	}
 	if item.IsPR && item.HasMilestone {
@@ -75,12 +77,12 @@ func processItem(ctx context.Context, ghc sweepClient, org, repo string, item gi
 	inactive := now.Sub(item.UpdatedAt)
 
 	switch {
-	case hasLabel(item.Labels, labels.LifecycleRotten):
+	case slices.Contains(item.Labels, labels.LifecycleRotten):
 		if cfg.CloseAfter > 0 && inactive >= days(cfg.CloseAfter) {
 			return closeItem(ctx, ghc, org, repo, item, cfg.CloseComment)
 		}
 
-	case hasLabel(item.Labels, labels.LifecycleStale):
+	case slices.Contains(item.Labels, labels.LifecycleStale):
 		// In close_stale mode, stale items skip rotten and close directly
 		// once they reach the rotten threshold.
 		if inactive >= days(cfg.RottenDays) {
@@ -133,15 +135,6 @@ func postIfSet(ctx context.Context, ghc sweepClient, org, repo string, number in
 		return nil
 	}
 	return ghc.CreateIssueComment(ctx, org, repo, number, body)
-}
-
-func hasLabel(lbls []string, target string) bool {
-	for _, l := range lbls {
-		if l == target {
-			return true
-		}
-	}
-	return false
 }
 
 func days(n int) time.Duration { return time.Duration(n) * 24 * time.Hour }
