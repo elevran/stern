@@ -31,6 +31,13 @@ type Milestone struct {
 	Title  string
 }
 
+// CheckRun represents a single GitHub check run on a ref.
+type CheckRun struct {
+	ID         int64
+	Name       string
+	Conclusion string // "failure", "timed_out", "cancelled", "action_required", "success", "skipped", "neutral", ""
+}
+
 // IsNotFoundError reports whether err is a 404 from the GitHub API.
 func IsNotFoundError(err error) bool {
 	var ghErr *gh.ErrorResponse

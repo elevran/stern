@@ -8,13 +8,14 @@ import (
 // MockClient is an in-process mock for tests. Zero value is usable.
 type MockClient struct {
 	// Pre-loaded read state.
-	RepoLabels   map[string]Label     // label name -> label
-	PullRequests map[int]*PullRequest // PR number -> PR
-	PRFiles      map[int][]string     // PR number -> filenames
-	FileContent  map[string][]byte    // "path@ref" -> content
-	OrgMembers   map[string]bool      // "org/user" -> is member
-	WriteAccess  map[string]bool      // "owner/repo/user" -> has write
-	Milestones   map[int]Milestone    // milestone number -> Milestone
+	RepoLabels      map[string]Label      // label name -> label
+	PullRequests    map[int]*PullRequest  // PR number -> PR
+	PRFiles         map[int][]string      // PR number -> filenames
+	FileContent     map[string][]byte     // "path@ref" -> content
+	OrgMembers      map[string]bool       // "org/user" -> is member
+	WriteAccess     map[string]bool       // "owner/repo/user" -> has write
+	Milestones      map[int]Milestone     // milestone number -> Milestone
+	FailedCheckRuns map[string][]CheckRun // "owner/repo/sha" -> failed check runs
 
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
@@ -30,11 +31,12 @@ type MockClient struct {
 	IssueClosed        []int    // issue numbers passed to CloseIssue
 	IssueReopened      []int    // issue numbers passed to ReopenIssue
 	MilestoneSet       []MilestoneSetRecord
-	MilestoneCleared   []int // issue numbers passed to ClearMilestone
+	MilestoneCleared   []int   // issue numbers passed to ClearMilestone
 	AssigneesAdded     []UsersRecord
 	AssigneesRemoved   []UsersRecord
 	ReviewersRequested []UsersRecord
 	ReviewersRemoved   []UsersRecord
+	RerunCheckRuns     []int64 // check run IDs passed to RerunCheckRun
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -62,18 +64,19 @@ type UsersRecord struct {
 
 func NewMockClient() *MockClient {
 	return &MockClient{
-		RepoLabels:     make(map[string]Label),
-		PullRequests:   make(map[int]*PullRequest),
-		PRFiles:        make(map[int][]string),
-		FileContent:    make(map[string][]byte),
-		OrgMembers:     make(map[string]bool),
-		WriteAccess:    make(map[string]bool),
-		Milestones:     make(map[int]Milestone),
-		IssueLabels:    make(map[int]map[string]bool),
-		IssueMilestone: make(map[int]int),
-		Assignees:      make(map[int][]string),
-		ReviewRequests: make(map[int][]string),
-		Errors:         make(map[string]error),
+		RepoLabels:      make(map[string]Label),
+		PullRequests:    make(map[int]*PullRequest),
+		PRFiles:         make(map[int][]string),
+		FileContent:     make(map[string][]byte),
+		OrgMembers:      make(map[string]bool),
+		WriteAccess:     make(map[string]bool),
+		Milestones:      make(map[int]Milestone),
+		FailedCheckRuns: make(map[string][]CheckRun),
+		IssueLabels:     make(map[int]map[string]bool),
+		IssueMilestone:  make(map[int]int),
+		Assignees:       make(map[int][]string),
+		ReviewRequests:  make(map[int][]string),
+		Errors:          make(map[string]error),
 	}
 }
 
@@ -334,5 +337,20 @@ func (m *MockClient) RemoveReviewers(_ context.Context, _, _ string, number int,
 	}
 	m.ReviewRequests[number] = remaining
 	m.ReviewersRemoved = append(m.ReviewersRemoved, UsersRecord{Number: number, Users: users})
+	return nil
+}
+
+func (m *MockClient) ListFailedCheckRuns(_ context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	if err := m.err("ListFailedCheckRuns"); err != nil {
+		return nil, err
+	}
+	return m.FailedCheckRuns[owner+"/"+repo+"/"+sha], nil
+}
+
+func (m *MockClient) RerunCheckRun(_ context.Context, _, _ string, id int64) error {
+	if err := m.err("RerunCheckRun"); err != nil {
+		return err
+	}
+	m.RerunCheckRuns = append(m.RerunCheckRuns, id)
 	return nil
 }

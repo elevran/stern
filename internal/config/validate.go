@@ -9,6 +9,7 @@ import (
 // known plugin names for validation and "did you mean?" suggestions.
 var knownPlugins = []string{
 	"lgtm", "approve", "hold", "wip", "close", "reopen", "milestone",
+	"retest",
 	"cherry-pick", "review_assignment", "size", "lifecycle",
 }
 

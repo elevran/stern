@@ -156,6 +156,7 @@ func DefaultRegistry() Registry {
 		"unassign":  NewAssignHandler("unassign"),
 		"cc":        NewCCHandler("cc"),
 		"uncc":      NewCCHandler("uncc"),
+		"retest":    NewRetestHandler,
 	}
 }
 
