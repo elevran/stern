@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func writeFile(path string, data []byte) error {
@@ -14,45 +16,27 @@ func writeFile(path string, data []byte) error {
 
 func TestGenerate_ParsesBack(t *testing.T) {
 	data, err := config.Generate("testorg", "testrepo")
-	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Generate() returned empty output")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, data, "Generate() returned empty output")
 
 	// Parse via LoadFromFile to exercise the full path including applyDefaults.
 	tmpFile := t.TempDir() + "/stern.yaml"
-	if err := writeFile(tmpFile, data); err != nil {
-		t.Fatalf("writing temp file: %v", err)
-	}
+	require.NoError(t, writeFile(tmpFile, data))
 	opts, err := config.LoadFromFile(tmpFile)
-	if err != nil {
-		t.Fatalf("LoadFromFile() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	if errs := opts.Validate(); len(errs) != 0 {
-		t.Errorf("Validate() returned errors for generated config: %v", errs)
-	}
-	if opts.Org != "testorg" {
-		t.Errorf("Org = %q, want testorg", opts.Org)
-	}
-	if opts.Repo != "testrepo" {
-		t.Errorf("Repo = %q, want testrepo", opts.Repo)
-	}
+	assert.Empty(t, opts.Validate(), "Validate() returned errors for generated config")
+	assert.Equal(t, "testorg", opts.Org)
+	assert.Equal(t, "testrepo", opts.Repo)
 }
 
 func TestGenerate_ContainsAllPlugins(t *testing.T) {
 	data, err := config.Generate("org", "repo")
-	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
+	require.NoError(t, err)
 	s := string(data)
 	plugins := []string{"lgtm", "approve", "hold", "wip", "cherry-pick", "review_assignment", "size", "lifecycle"}
 	for _, p := range plugins {
-		if !strings.Contains(s, p) {
-			t.Errorf("generated config does not mention plugin %q", p)
-		}
+		assert.True(t, strings.Contains(s, p), "generated config does not mention plugin %q", p)
 	}
 }
 
@@ -60,22 +44,19 @@ func TestOrgRepoFromGitHubRepository(t *testing.T) {
 	t.Run("flags take precedence", func(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "envorg/envrepo")
 		org, repo := config.OrgRepoFromGitHubRepository("flagorg", "flagrepo")
-		if org != "flagorg" || repo != "flagrepo" {
-			t.Errorf("got %s/%s, want flagorg/flagrepo", org, repo)
-		}
+		assert.Equal(t, "flagorg", org)
+		assert.Equal(t, "flagrepo", repo)
 	})
 	t.Run("env fallback", func(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "envorg/envrepo")
 		org, repo := config.OrgRepoFromGitHubRepository("", "")
-		if org != "envorg" || repo != "envrepo" {
-			t.Errorf("got %s/%s, want envorg/envrepo", org, repo)
-		}
+		assert.Equal(t, "envorg", org)
+		assert.Equal(t, "envrepo", repo)
 	})
 	t.Run("empty env", func(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "")
 		org, repo := config.OrgRepoFromGitHubRepository("", "")
-		if org != "" || repo != "" {
-			t.Errorf("got %s/%s, want empty", org, repo)
-		}
+		assert.Equal(t, "", org)
+		assert.Equal(t, "", repo)
 	})
 }

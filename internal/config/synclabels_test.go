@@ -7,6 +7,8 @@ import (
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDiffLabels_Create(t *testing.T) {
@@ -14,9 +16,7 @@ func TestDiffLabels_Create(t *testing.T) {
 		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
 	plan := config.DiffLabels(desired, nil)
-	if len(plan.Creates) != 1 {
-		t.Errorf("expected 1 create, got %d", len(plan.Creates))
-	}
+	assert.Len(t, plan.Creates, 1, "expected 1 create")
 }
 
 func TestDiffLabels_OK(t *testing.T) {
@@ -27,9 +27,7 @@ func TestDiffLabels_OK(t *testing.T) {
 		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
 	plan := config.DiffLabels(desired, current)
-	if len(plan.Unchanged) != 1 {
-		t.Errorf("expected 1 unchanged, got %d", len(plan.Unchanged))
-	}
+	assert.Len(t, plan.Unchanged, 1, "expected 1 unchanged")
 }
 
 func TestDiffLabels_Update_Color(t *testing.T) {
@@ -40,9 +38,7 @@ func TestDiffLabels_Update_Color(t *testing.T) {
 		{Name: "lgtm", Color: "ffffff", Description: "Looks good to me"},
 	}
 	plan := config.DiffLabels(desired, current)
-	if len(plan.Updates) != 1 {
-		t.Errorf("expected 1 update for color change, got %d", len(plan.Updates))
-	}
+	assert.Len(t, plan.Updates, 1, "expected 1 update for color change")
 }
 
 func TestDiffLabels_Update_Description(t *testing.T) {
@@ -53,9 +49,7 @@ func TestDiffLabels_Update_Description(t *testing.T) {
 		{Name: "lgtm", Color: "0e8a16", Description: "Old description"},
 	}
 	plan := config.DiffLabels(desired, current)
-	if len(plan.Updates) != 1 {
-		t.Errorf("expected 1 update for description change, got %d", len(plan.Updates))
-	}
+	assert.Len(t, plan.Updates, 1, "expected 1 update for description change")
 }
 
 func TestDiffLabels_Extra(t *testing.T) {
@@ -63,9 +57,7 @@ func TestDiffLabels_Extra(t *testing.T) {
 		{Name: "extra-label", Color: "000000", Description: "Not in config"},
 	}
 	plan := config.DiffLabels(nil, current)
-	if len(plan.Extras) != 1 {
-		t.Errorf("expected 1 extra, got %d", len(plan.Extras))
-	}
+	assert.Len(t, plan.Extras, 1, "expected 1 extra")
 }
 
 func TestDiffLabels_NoPrune(t *testing.T) {
@@ -74,12 +66,8 @@ func TestDiffLabels_NoPrune(t *testing.T) {
 		{Name: "extra", Color: "000000", Description: ""},
 	}
 	plan := config.DiffLabels(nil, current)
-	if err := plan.Apply(context.Background(), ghc, "owner", "repo", false); err != nil {
-		t.Fatalf("Apply() error = %v", err)
-	}
-	if len(ghc.RepoLabels) != 0 {
-		t.Error("expected no label mutations when not pruning")
-	}
+	require.NoError(t, plan.Apply(context.Background(), ghc, "owner", "repo", false))
+	assert.Empty(t, ghc.RepoLabels, "expected no label mutations when not pruning")
 }
 
 func TestDiffLabels_WithPrune(t *testing.T) {
@@ -89,12 +77,9 @@ func TestDiffLabels_WithPrune(t *testing.T) {
 		{Name: "extra", Color: "000000", Description: ""},
 	}
 	plan := config.DiffLabels(nil, current)
-	if err := plan.Apply(context.Background(), ghc, "owner", "repo", true); err != nil {
-		t.Fatalf("Apply() error = %v", err)
-	}
-	if _, ok := ghc.RepoLabels["extra"]; ok {
-		t.Error("expected extra label to be deleted when pruning")
-	}
+	require.NoError(t, plan.Apply(context.Background(), ghc, "owner", "repo", true))
+	_, ok := ghc.RepoLabels["extra"]
+	assert.False(t, ok, "expected extra label to be deleted when pruning")
 }
 
 func TestApply_Create(t *testing.T) {
@@ -103,12 +88,9 @@ func TestApply_Create(t *testing.T) {
 		{Name: "lgtm", Color: "0e8a16", Description: "desc"},
 	}
 	plan := config.DiffLabels(desired, nil)
-	if err := plan.Apply(context.Background(), ghc, "o", "r", false); err != nil {
-		t.Fatalf("Apply() error = %v", err)
-	}
-	if _, ok := ghc.RepoLabels["lgtm"]; !ok {
-		t.Error("expected lgtm label to be created")
-	}
+	require.NoError(t, plan.Apply(context.Background(), ghc, "o", "r", false))
+	_, ok := ghc.RepoLabels["lgtm"]
+	assert.True(t, ok, "expected lgtm label to be created")
 }
 
 func TestPrint(t *testing.T) {
