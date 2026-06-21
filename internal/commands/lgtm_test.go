@@ -50,7 +50,7 @@ func lgtmOpts(allowSelf bool) *config.Options {
 
 func TestLGTM_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label to be added")
@@ -61,7 +61,7 @@ func TestLGTM_AddsLabel(t *testing.T) {
 func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm cancel", reg, ghc, lgtmOpts(false))
 
 	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label to be removed on cancel")
@@ -72,7 +72,7 @@ func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 func TestLGTM_SelfLGTMDenied(t *testing.T) {
 	sc, ghc := prContext("reviewer") // PR author == commenter
 	sc.Author = "reviewer"
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added when author lgtms own PR")
@@ -83,7 +83,7 @@ func TestLGTM_SelfLGTMDenied(t *testing.T) {
 func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 	sc, ghc := prContext("reviewer")
 	sc.Author = "reviewer"
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(true))
 
 	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added when allow_self_lgtm=true")
@@ -97,7 +97,7 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - alice\n  - bob\n")
 	ghc.PRFiles[1] = []string{"README.md"}
 
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added for non-reviewer when OWNERS present")
@@ -111,7 +111,7 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 	// No OWNERS files loaded in mock
 	ghc.PRFiles[1] = []string{"README.md"}
 
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added when no OWNERS files present")
@@ -128,7 +128,7 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 		PR:          nil, // not a PR
 	}
 	ghc := github.NewMockClient()
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -139,7 +139,7 @@ func TestLGTM_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")

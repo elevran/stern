@@ -15,8 +15,8 @@ import (
 
 func ccReg() commands.Registry {
 	return commands.Registry{
-		"cc":   commands.NewCCHandler("cc"),
-		"uncc": commands.NewCCHandler("uncc"),
+		"cc":   {Factory: commands.NewCCHandler("cc")},
+		"uncc": {Factory: commands.NewCCHandler("uncc")},
 	}
 }
 

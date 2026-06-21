@@ -15,8 +15,8 @@ import (
 
 func assignReg() commands.Registry {
 	return commands.Registry{
-		"assign":   commands.NewAssignHandler("assign"),
-		"unassign": commands.NewAssignHandler("unassign"),
+		"assign":   {Factory: commands.NewAssignHandler("assign")},
+		"unassign": {Factory: commands.NewAssignHandler("unassign")},
 	}
 }
 

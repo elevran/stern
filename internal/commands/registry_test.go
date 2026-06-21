@@ -86,7 +86,7 @@ func TestDispatch_PermissionError(t *testing.T) {
 	sc := newSternContext()
 
 	reg := commands.Registry{
-		"deny": newDenyHandler,
+		"deny": {Factory: newDenyHandler},
 	}
 	commands.Dispatch(context.Background(), sc, "/deny", reg, ghc, opts)
 
@@ -101,7 +101,7 @@ func TestDispatch_InternalError(t *testing.T) {
 	sc := newSternContext()
 
 	reg := commands.Registry{
-		"fail": newFailHandler,
+		"fail": {Factory: newFailHandler},
 	}
 	commands.Dispatch(context.Background(), sc, "/fail", reg, ghc, opts)
 
@@ -117,9 +117,9 @@ func TestDispatch_PluginNotEnabled(t *testing.T) {
 
 	called := false
 	reg := commands.Registry{
-		"approve": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+		"approve": {Factory: func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
 			return &spyHandler{onHandle: func() error { called = true; return nil }}
-		},
+		}},
 	}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
 

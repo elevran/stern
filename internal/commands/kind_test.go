@@ -21,7 +21,7 @@ func kindOpts() *config.Options {
 
 func TestKind_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["kind/bug"], "expected kind/bug label to be added")
@@ -35,7 +35,7 @@ func TestKind_AllowsMultipleValues(t *testing.T) {
 	sc.PR.Labels = []string{"kind/bug"}
 	ghc.IssueLabels[1] = map[string]bool{"kind/bug": true}
 
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind feature", reg, ghc, kindOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["kind/bug"], "expected pre-existing kind/bug label to remain (no mutual exclusion)")
@@ -44,7 +44,7 @@ func TestKind_AllowsMultipleValues(t *testing.T) {
 
 func TestKind_InvalidValue(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind unknown", reg, ghc, kindOpts())
 
 	assert.Empty(t, ghc.IssueLabels[1], "expected no labels added for invalid kind")
@@ -54,7 +54,7 @@ func TestKind_InvalidValue(t *testing.T) {
 
 func TestKind_NoArg(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind", reg, ghc, kindOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -65,7 +65,7 @@ func TestKind_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -76,7 +76,7 @@ func TestKind_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"kind": commands.NewKindHandler}
+	reg := commands.Registry{"kind": {Factory: commands.NewKindHandler}}
 	commands.Dispatch(context.Background(), sc, "/kind bug", reg, ghc, kindOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")

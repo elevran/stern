@@ -23,7 +23,7 @@ func wipOpts() *config.Options {
 
 func TestWIP_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label added")
@@ -36,7 +36,7 @@ func TestWIP_RemovesLabel(t *testing.T) {
 	sc.PR.Labels = []string{"do-not-merge/wip"}
 	ghc.IssueLabels[1] = map[string]bool{"do-not-merge/wip": true}
 
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label removed")
@@ -57,7 +57,7 @@ func TestWIP_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 		Labels: []string{"lgtm", "approved"},
 	}
 
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["do-not-merge/wip"], "expected wip label removed")
@@ -67,7 +67,7 @@ func TestWIP_Cancel_ReenablesAutoMerge_WhenEligible(t *testing.T) {
 
 func TestWIP_AddsLabel_DisablesAutoMerge(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	assert.NotEmpty(t, ghc.AutoMergeDisabled, "expected DisableAutoMerge called when wip label added")
@@ -77,7 +77,7 @@ func TestWIP_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -88,7 +88,7 @@ func TestWIP_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"wip": commands.NewWIPHandler}
+	reg := commands.Registry{"wip": {Factory: commands.NewWIPHandler}}
 	commands.Dispatch(context.Background(), sc, "/wip", reg, ghc, wipOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")

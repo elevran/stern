@@ -21,7 +21,7 @@ func areaOpts() *config.Options {
 
 func TestArea_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area api", reg, ghc, areaOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["area/api"], "expected area/api label to be added")
@@ -34,7 +34,7 @@ func TestArea_AllowsMultipleValues(t *testing.T) {
 	sc.PR.Labels = []string{"area/api"}
 	ghc.IssueLabels[1] = map[string]bool{"area/api": true}
 
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area cli", reg, ghc, areaOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["area/api"], "expected pre-existing area/api label to remain (no mutual exclusion)")
@@ -43,7 +43,7 @@ func TestArea_AllowsMultipleValues(t *testing.T) {
 
 func TestArea_InvalidValue(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area unknown", reg, ghc, areaOpts())
 
 	assert.Empty(t, ghc.IssueLabels[1], "expected no labels added for invalid area")
@@ -53,7 +53,7 @@ func TestArea_InvalidValue(t *testing.T) {
 
 func TestArea_NoArg(t *testing.T) {
 	sc, ghc := prContext("author")
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area", reg, ghc, areaOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -64,7 +64,7 @@ func TestArea_NotOnPR(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.PR = nil
 
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area api", reg, ghc, areaOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
@@ -75,7 +75,7 @@ func TestArea_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
-	reg := commands.Registry{"area": commands.NewAreaHandler}
+	reg := commands.Registry{"area": {Factory: commands.NewAreaHandler}}
 	commands.Dispatch(context.Background(), sc, "/area api", reg, ghc, areaOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")

@@ -28,8 +28,21 @@ type Handler interface {
 // HandlerFactory creates a configured Handler for the given call context.
 type HandlerFactory func(sc *event.Context, ghc github.Client, opts *config.Options) Handler
 
-// Registry maps command verbs to handler factories.
-type Registry map[string]HandlerFactory
+// CommandInfo holds human-readable documentation for a command.
+type CommandInfo struct {
+	Short  string // one-line summary shown in /help
+	Usage  string // "/verb [cancel]" style usage line
+	Config string // brief config field, empty if none
+}
+
+// Registration bundles a handler factory with its documentation.
+type Registration struct {
+	Factory HandlerFactory
+	Info    CommandInfo
+}
+
+// Registry maps command verbs to registrations.
+type Registry map[string]Registration
 
 // labelMutatingBase implements Post for handlers that mutate labels.
 // It fetches a fresh PR and re-evaluates auto-merge eligibility after every
@@ -95,19 +108,19 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 		}
 		args := tokens[cmdIdx+1:]
 
-		factory, ok := reg[verb]
+		registration, ok := reg[verb]
 		if !ok {
 			log.WithField("command", "/"+verb).Info("no handler registered")
 			continue
 		}
 
-		if verb != "ping" && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
+		if verb != "ping" && verb != "help" && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
 			log.WithField("command", "/"+verb).Info("plugin not enabled")
 			continue
 		}
 
 		log.WithField("command", "/"+verb).Info("dispatching")
-		h := factory(sc, ghc, opts)
+		h := registration.Factory(sc, ghc, opts)
 
 		if preErr := h.Pre(ctx, sc, args); preErr != nil {
 			dispatchErr(ctx, log, sc, ghc, verb, preErr)
@@ -144,23 +157,81 @@ func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc 
 // DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
-		"ping":      newPingHandler,
-		"lgtm":      NewLGTMHandler,
-		"approve":   NewApproveHandler,
-		"hold":      NewHoldHandler,
-		"wip":       NewWIPHandler,
-		"close":     newCloseHandler("close"),
-		"reopen":    newCloseHandler("reopen"),
-		"milestone": NewMilestoneHandler,
-		"assign":    NewAssignHandler("assign"),
-		"unassign":  NewAssignHandler("unassign"),
-		"cc":        NewCCHandler("cc"),
-		"uncc":      NewCCHandler("uncc"),
-		"retest":    NewRetestHandler,
-		"kind":      NewKindHandler,
-		"area":      NewAreaHandler,
-		"priority":  NewPriorityHandler,
-		"lifecycle": NewLifecycleHandler,
+		"ping": {Factory: newPingHandler, Info: CommandInfo{
+			Short: "Check that the bot is alive",
+			Usage: "/ping",
+		}},
+		"help": {Factory: NewHelpHandler(DefaultRegistry), Info: CommandInfo{
+			Short: "List available commands",
+			Usage: "/help",
+		}},
+		"lgtm": {Factory: NewLGTMHandler, Info: CommandInfo{
+			Short:  "Approve a PR as a reviewer (LGTM)",
+			Usage:  "/lgtm [cancel]",
+			Config: "lgtm.allow_self_lgtm",
+		}},
+		"approve": {Factory: NewApproveHandler, Info: CommandInfo{
+			Short:  "Approve a PR (auto-merges when both /lgtm and /approve are present)",
+			Usage:  "/approve [cancel]",
+			Config: "approve.allow_self_approval, approve.require_owner",
+		}},
+		"hold": {Factory: NewHoldHandler, Info: CommandInfo{
+			Short: "Block merging of a PR",
+			Usage: "/hold [cancel]",
+		}},
+		"wip": {Factory: NewWIPHandler, Info: CommandInfo{
+			Short: "Mark a PR as work-in-progress",
+			Usage: "/wip [cancel]",
+		}},
+		"close": {Factory: newCloseHandler("close"), Info: CommandInfo{
+			Short: "Close an issue or PR",
+			Usage: "/close",
+		}},
+		"reopen": {Factory: newCloseHandler("reopen"), Info: CommandInfo{
+			Short: "Reopen a closed issue or PR",
+			Usage: "/reopen",
+		}},
+		"milestone": {Factory: NewMilestoneHandler, Info: CommandInfo{
+			Short: "Set the milestone on an issue or PR",
+			Usage: "/milestone <name> [cancel]",
+		}},
+		"assign": {Factory: NewAssignHandler("assign"), Info: CommandInfo{
+			Short: "Assign a user to an issue or PR",
+			Usage: "/assign <user>",
+		}},
+		"unassign": {Factory: NewAssignHandler("unassign"), Info: CommandInfo{
+			Short: "Remove an assignee from an issue or PR",
+			Usage: "/unassign <user>",
+		}},
+		"cc": {Factory: NewCCHandler("cc"), Info: CommandInfo{
+			Short: "Request a review from a user",
+			Usage: "/cc <user>",
+		}},
+		"uncc": {Factory: NewCCHandler("uncc"), Info: CommandInfo{
+			Short: "Remove a review request from a user",
+			Usage: "/uncc <user>",
+		}},
+		"retest": {Factory: NewRetestHandler, Info: CommandInfo{
+			Short: "Re-run failed CI checks",
+			Usage: "/retest",
+		}},
+		"kind": {Factory: NewKindHandler, Info: CommandInfo{
+			Short: "Set the `kind/*` label on a PR",
+			Usage: "/kind <name>",
+		}},
+		"area": {Factory: NewAreaHandler, Info: CommandInfo{
+			Short: "Set the `area/*` label on a PR",
+			Usage: "/area <name>",
+		}},
+		"priority": {Factory: NewPriorityHandler, Info: CommandInfo{
+			Short: "Set the `priority/*` label on a PR",
+			Usage: "/priority <name>",
+		}},
+		"lifecycle": {Factory: NewLifecycleHandler, Info: CommandInfo{
+			Short:  "Manage stale/rotten lifecycle labels on issues and PRs",
+			Usage:  "/lifecycle <set|clear>",
+			Config: "lifecycle.enabled",
+		}},
 	}
 }
 
