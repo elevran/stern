@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -226,11 +227,30 @@ type graphqlRequest struct {
 	Variables map[string]any `json:"variables,omitempty"`
 }
 
+// graphqlError mirrors a single entry in the top-level GraphQL "errors" array.
+type graphqlError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"` // e.g. "FORBIDDEN", "NOT_FOUND"
+}
+
 // graphqlResponse holds top-level GraphQL errors (mutations return null data on failure).
 type graphqlResponse struct {
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
+	Data   json.RawMessage `json:"data"`
+	Errors []graphqlError  `json:"errors"`
+}
+
+// GraphQLError is the typed error returned from graphql() when the GraphQL
+// response contains an error entry. Type is the GitHub error type
+// (e.g. "FORBIDDEN", "NOT_FOUND"); callers can match on it with errors.As.
+type GraphQLError struct {
+	Message string
+	Type    string
+}
+
+// Error implements the error interface. Message is intentionally used so the
+// formatted string matches the previous "%s" behavior.
+func (e *GraphQLError) Error() string {
+	return e.Message
 }
 
 func (c *realClient) graphql(ctx context.Context, query string, vars map[string]any) error {
@@ -243,7 +263,8 @@ func (c *realClient) graphql(ctx context.Context, query string, vars map[string]
 		return err
 	}
 	if len(resp.Errors) > 0 {
-		return fmt.Errorf("graphql: %s", resp.Errors[0].Message)
+		first := resp.Errors[0]
+		return &GraphQLError{Message: first.Message, Type: first.Type}
 	}
 	return nil
 }

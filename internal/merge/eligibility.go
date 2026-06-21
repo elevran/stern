@@ -2,6 +2,7 @@ package merge
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -95,6 +96,8 @@ func DisableAutoMerge(ctx context.Context, ghc github.PullRequestsClient, nodeID
 // isAutoMergeUnavailable reports whether err is GitHub's "Resource not accessible
 // by integration" response, which occurs when auto-merge is disabled at the
 // repository level (Settings → General → Allow auto-merge) or the token lacks access.
+// It matches on the GraphQL error type "FORBIDDEN" via the typed GraphQLError.
 func isAutoMergeUnavailable(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "Resource not accessible by integration")
+	var gqlErr *github.GraphQLError
+	return errors.As(err, &gqlErr) && gqlErr.Type == "FORBIDDEN"
 }

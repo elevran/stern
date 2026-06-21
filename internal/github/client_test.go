@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -91,7 +92,7 @@ func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
 	srv, _ := captureGraphQL(t, map[string]any{
 		"data": nil,
 		"errors": []map[string]any{
-			{"message": "Pull request Pull request is in clean status"},
+			{"message": "Pull request Pull request is in clean status", "type": "UNPROCESSABLE"},
 		},
 	})
 
@@ -102,6 +103,16 @@ func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "clean status") {
 		t.Errorf("error = %v, want it to contain 'clean status'", err)
+	}
+	var gqlErr *GraphQLError
+	if !errors.As(err, &gqlErr) {
+		t.Fatalf("expected error to be a *GraphQLError, got %T: %v", err, err)
+	}
+	if gqlErr.Type != "UNPROCESSABLE" {
+		t.Errorf("expected GraphQLError.Type=UNPROCESSABLE, got %q", gqlErr.Type)
+	}
+	if gqlErr.Message != "Pull request Pull request is in clean status" {
+		t.Errorf("unexpected GraphQLError.Message: %q", gqlErr.Message)
 	}
 }
 
