@@ -9,7 +9,6 @@ import (
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
-	"github.com/elevran/stern/internal/merge"
 )
 
 // wipClient is the minimum Client surface WIPHandler uses.
@@ -20,14 +19,16 @@ type wipClient interface {
 
 // WIPHandler handles /wip (toggle).
 type WIPHandler struct {
-	nopPost
-	ghc  wipClient
-	opts *config.Options
+	labelMutatingBase // provides Post and opts
+	ghc               wipClient
 }
 
 // NewWIPHandler constructs a WIPHandler with all dependencies injected.
 func NewWIPHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
-	return &WIPHandler{ghc: ghc, opts: opts}
+	return &WIPHandler{
+		labelMutatingBase: labelMutatingBase{mergeGHC: ghc, opts: opts},
+		ghc:               ghc,
+	}
 }
 
 func (h *WIPHandler) Pre(_ context.Context, sc *event.Context, _ []string) error {
@@ -43,15 +44,8 @@ func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) 
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.WIP); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
-		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-		if err != nil {
-			return err
-		}
-		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+		return nil
 	}
 
-	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.WIP}); err != nil {
-		return err
-	}
-	return merge.DisableAutoMerge(ctx, h.ghc, sc.PR.NodeID)
+	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.WIP})
 }

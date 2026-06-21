@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/elevran/stern/internal/commands"
@@ -108,5 +109,22 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	}
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
 		t.Errorf("expected +1 reaction after successful /approve, got %v", ghc.Reactions)
+	}
+}
+
+func TestApprove_HandleError_SuppressesPost(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "approver"
+	ghc.Errors["AddLabels"] = errors.New("boom")
+
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
+		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
+			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
+		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
 	}
 }

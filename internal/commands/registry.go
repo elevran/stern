@@ -11,6 +11,7 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/elevran/stern/internal/merge"
 )
 
 // Handler processes a single slash command.
@@ -30,10 +31,24 @@ type HandlerFactory func(sc *event.Context, ghc github.Client, opts *config.Opti
 // Registry maps command verbs to handler factories.
 type Registry map[string]HandlerFactory
 
-// nopPost provides a no-op Post implementation for handlers with no post-processing.
-type nopPost struct{}
+// labelMutatingBase implements Post for handlers that mutate labels.
+// It fetches a fresh PR and re-evaluates auto-merge eligibility after every
+// successful Handle call.
+type labelMutatingBase struct {
+	mergeGHC github.PullRequestsClient
+	opts     *config.Options
+}
 
-func (nopPost) Post(_ context.Context, _ *event.Context, _ []string, _ error) error { return nil }
+func (b *labelMutatingBase) Post(ctx context.Context, sc *event.Context, _ []string, handleErr error) error {
+	if handleErr != nil {
+		return nil
+	}
+	pr, err := b.mergeGHC.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	return merge.CheckAndApplyAutoMerge(ctx, b.mergeGHC, pr, b.opts)
+}
 
 // ErrPermission represents a permission-denied or validation error from a handler.
 type ErrPermission struct {
@@ -142,7 +157,10 @@ func newPingHandler(_ *event.Context, _ github.Client, _ *config.Options) Handle
 }
 
 // pingHandler handles /ping — confirms the bot is alive.
-type pingHandler struct{ nopPost }
+type pingHandler struct{}
 
 func (h *pingHandler) Pre(_ context.Context, _ *event.Context, _ []string) error    { return nil }
 func (h *pingHandler) Handle(_ context.Context, _ *event.Context, _ []string) error { return nil }
+func (h *pingHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
+}

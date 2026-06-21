@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/elevran/stern/internal/commands"
@@ -148,5 +149,21 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
 		t.Errorf("expected -1 for /lgtm on non-PR, got %v", ghc.Reactions)
+	}
+}
+
+func TestLGTM_HandleError_SuppressesPost(t *testing.T) {
+	sc, ghc := prContext("author")
+	ghc.Errors["AddLabels"] = errors.New("boom")
+
+	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
+	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
+
+	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
+		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
+			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
+	}
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
+		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
 	}
 }

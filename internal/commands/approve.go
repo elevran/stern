@@ -8,7 +8,6 @@ import (
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
-	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"
 )
 
@@ -21,14 +20,16 @@ type approveClient interface {
 
 // ApproveHandler handles /approve and /approve cancel.
 type ApproveHandler struct {
-	nopPost
-	ghc  approveClient
-	opts *config.Options
+	labelMutatingBase // provides Post and opts
+	ghc               approveClient
 }
 
 // NewApproveHandler constructs an ApproveHandler with all dependencies injected.
 func NewApproveHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
-	return &ApproveHandler{ghc: ghc, opts: opts}
+	return &ApproveHandler{
+		labelMutatingBase: labelMutatingBase{mergeGHC: ghc, opts: opts},
+		ghc:               ghc,
+	}
 }
 
 func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
@@ -49,43 +50,17 @@ func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []s
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
-		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-		if err != nil {
-			return err
-		}
-		return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+		return nil
 	}
 
-	if err := h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Approved}); err != nil {
-		return err
-	}
-	pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
-	}
-	return merge.CheckAndApplyAutoMerge(ctx, h.ghc, pr, h.opts)
+	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{labels.Approved})
 }
 
 func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Context) error {
 	if !h.opts.Approve.RequireOwner {
 		return nil
 	}
-	if sc.PR.HeadSHA == "" {
-		return nil
-	}
-	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
-	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
-	if err != nil {
-		return err
-	}
-	if !resolved.HasOwners() {
-		return nil
-	}
-	if !resolved.IsApprover(sc.Author) {
-		return PermissionError("%s is not in the OWNERS approvers list for this PR's changed files", sc.Author)
-	}
-	return nil
+	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
+		return r.IsApprover(sc.Author)
+	}, "%s is not in the OWNERS approvers list for this PR's changed files")
 }
