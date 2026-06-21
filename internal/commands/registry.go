@@ -152,6 +152,10 @@ func DefaultRegistry() Registry {
 		"close":     newCloseHandler("close"),
 		"reopen":    newCloseHandler("reopen"),
 		"milestone": NewMilestoneHandler,
+		"assign":    NewAssignHandler("assign"),
+		"unassign":  NewAssignHandler("unassign"),
+		"cc":        NewCCHandler("cc"),
+		"uncc":      NewCCHandler("uncc"),
 	}
 }
 
