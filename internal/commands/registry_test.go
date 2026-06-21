@@ -127,6 +127,56 @@ func TestDispatch_InternalError(t *testing.T) {
 	}
 }
 
+func TestDispatch_PluginNotEnabled(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{Plugins: []string{"lgtm"}}
+	sc := newSternContext()
+
+	called := false
+	reg := commands.Registry{
+		"approve": func(_ *event.Context, _ github.Client, _ *config.Options) commands.Handler {
+			return &spyHandler{onHandle: func() error { called = true; return nil }}
+		},
+	}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
+
+	if called {
+		t.Error("handler should not be invoked when its plugin is not enabled")
+	}
+	if len(ghc.Reactions) != 0 {
+		t.Errorf("expected no reaction for disabled plugin, got %v", ghc.Reactions)
+	}
+	if len(ghc.Comments) != 0 {
+		t.Errorf("expected no comment for disabled plugin, got %v", ghc.Comments)
+	}
+}
+
+func TestDispatch_BuiltinIgnoresPlugins(t *testing.T) {
+	ghc := github.NewMockClient()
+	opts := &config.Options{Plugins: []string{"lgtm"}}
+	sc := newSternContext()
+
+	reg := commands.DefaultRegistry()
+	commands.Dispatch(context.Background(), sc, "/ping", reg, ghc, opts)
+
+	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
+		t.Errorf("expected +1 reaction from /ping with restricted plugins, got %v", ghc.Reactions)
+	}
+}
+
+// spyHandler records whether Handle was called.
+type spyHandler struct {
+	onHandle func() error
+}
+
+func (h *spyHandler) Pre(_ context.Context, _ *event.Context, _ []string) error { return nil }
+func (h *spyHandler) Handle(_ context.Context, _ *event.Context, _ []string) error {
+	return h.onHandle()
+}
+func (h *spyHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
+	return nil
+}
+
 // denyHandler always returns a permission error from Pre.
 type denyHandler struct{}
 

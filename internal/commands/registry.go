@@ -86,6 +86,11 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 			continue
 		}
 
+		if verb != "ping" && opts != nil && len(opts.Plugins) > 0 && !opts.HasPlugin(verb) {
+			log.WithField("command", "/"+verb).Info("plugin not enabled")
+			continue
+		}
+
 		log.WithField("command", "/"+verb).Info("dispatching")
 		h := factory(sc, ghc, opts)
 
