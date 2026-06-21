@@ -87,7 +87,21 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 		"author": sc.Author,
 	})
 
+	inFence := false
 	for line := range strings.SplitSeq(body, "\n") {
+		// Skip lines inside fenced code blocks; commands there are
+		// documentation/examples, not invocations.
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		// Skip blockquote lines; quoting an old command must not re-trigger it.
+		if strings.HasPrefix(strings.TrimSpace(line), ">") {
+			continue
+		}
 		tokens := strings.Fields(line)
 		// find the first slash-command token anywhere in the line
 		cmdIdx := -1
