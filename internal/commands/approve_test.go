@@ -115,3 +115,54 @@ func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }
+
+// TestApprove_PartialOwnership_Rejected covers #100: when the commenter is
+// only an approver for one of two directories touched by the PR, /approve
+// must fail with a PermissionError listing the uncovered file.
+func TestApprove_PartialOwnership_Rejected(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "alice"
+	ghc.FileContent["dir-a/OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
+	ghc.FileContent["dir-b/OWNERS@abc123"] = []byte("approvers:\n  - bob\n")
+	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
+
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for partial ownership")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
+	require.NotEmpty(t, ghc.Comments, "expected permission error comment")
+	assert.Contains(t, ghc.Comments[0].Body, "dir-b/f.go", "expected uncovered file listed in error comment")
+}
+
+// TestApprove_FullOwnership_Accepted: commenter is an approver for every
+// changed file (via the root OWNERS) → /approve succeeds.
+func TestApprove_FullOwnership_Accepted(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "alice"
+	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
+	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
+
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added for full ownership")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction")
+}
+
+// TestApprove_NoOwnersFiles_Accepted: open directory (no OWNERS anywhere)
+// preserves existing "anyone may approve" behaviour.
+func TestApprove_NoOwnersFiles_Accepted(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "outsider"
+	ghc.PRFiles[1] = []string{"some/path/f.go"}
+
+	reg := commands.Registry{"approve": commands.NewApproveHandler}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved added when no OWNERS files exist")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction")
+}

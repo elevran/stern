@@ -102,6 +102,58 @@ func (r *ResolvedOwners) HasOwners() bool {
 	return len(r.Approvers) > 0 || len(r.Reviewers) > 0
 }
 
+// UncoveredFiles returns the subset of changedPaths that have an OWNERS chain
+// but no approver matching login. Paths with no OWNERS file are considered
+// covered (anyone may approve them).
+func UncoveredFiles(
+	ctx context.Context,
+	ghc github.ContentClient,
+	owner, repo, ref, login string,
+	changedPaths []string,
+) ([]string, error) {
+	aliases, _ := loadAliases(ctx, ghc, owner, repo, ref)
+	var uncovered []string
+	for _, path := range changedPaths {
+		clean := filepath.Clean(path)
+		if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+			continue
+		}
+		if !coveredByLogin(ctx, ghc, owner, repo, ref, clean, login, aliases) {
+			uncovered = append(uncovered, clean)
+		}
+	}
+	return uncovered, nil
+}
+
+// coveredByLogin walks the OWNERS chain for path from most-specific directory
+// to root. Returns true if login is an approver in any ancestor OWNERS, or if
+// no OWNERS chain exists anywhere (open directory).
+func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, ref, path, login string, aliases *Aliases) bool {
+	for _, dir := range ancestorDirs(path) {
+		data, err := ghc.GetFileContent(ctx, owner, repo, ownersFilePath(dir), ref)
+		if err != nil {
+			continue // no OWNERS in this directory, keep walking up
+		}
+		var f File
+		if err := yaml.Unmarshal(data, &f); err != nil {
+			continue
+		}
+		if len(f.Approvers) == 0 {
+			continue // OWNERS exists but lists no approvers; keep walking up
+		}
+		// This level has explicit approvers — authoritative for this path.
+		for _, a := range f.Approvers {
+			for _, expanded := range expandAlias(a, aliases) {
+				if strings.EqualFold(expanded, login) {
+					return true
+				}
+			}
+		}
+		return false // level has approvers but login is not among them
+	}
+	return true // no OWNERS found anywhere — open directory
+}
+
 // ancestorDirs returns the directory path and all its ancestors up to root,
 // ordered from most specific (deepest) to least specific (root ".").
 func ancestorDirs(filePath string) []string {

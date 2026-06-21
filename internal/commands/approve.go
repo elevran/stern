@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"strings"
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
@@ -59,7 +60,22 @@ func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Conte
 	if !h.opts.Approve.RequireOwner {
 		return nil
 	}
-	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
-		return r.IsApprover(sc.Author)
-	}, "%s is not in the OWNERS approvers list for this PR's changed files")
+	if sc.PR.HeadSHA == "" {
+		return nil
+	}
+	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	uncovered, err := owners.UncoveredFiles(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, sc.Author, files)
+	if err != nil {
+		return err
+	}
+	if len(uncovered) == 0 {
+		return nil
+	}
+	return PermissionError(
+		"%s does not have approval authority over all changed files. Uncovered: %s",
+		sc.Author, strings.Join(uncovered, ", "),
+	)
 }
