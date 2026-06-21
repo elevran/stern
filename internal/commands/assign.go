@@ -8,15 +8,9 @@ import (
 	"github.com/elevran/stern/internal/github"
 )
 
-// assignClient is the minimum Client surface AssignHandler uses.
-type assignClient interface {
-	github.PermissionsClient
-	github.UsersClient
-}
-
 // AssignHandler handles /assign and /unassign.
 type AssignHandler struct {
-	ghc  assignClient
+	ghc  userCommandClient
 	verb string // "assign" or "unassign"
 }
 

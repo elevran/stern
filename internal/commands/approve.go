@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"strings"
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
@@ -36,7 +35,7 @@ func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []stri
 	if sc.PR == nil {
 		return PermissionError("/approve may only be used on pull requests")
 	}
-	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
+	if isCancel(args) {
 		return nil
 	}
 	if !h.opts.Approve.AllowSelfApproval && sc.PR.Author == sc.Author {
@@ -46,7 +45,7 @@ func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []stri
 }
 
 func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
-	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
+	if isCancel(args) {
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
