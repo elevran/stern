@@ -9,6 +9,37 @@ permissions:
   contents: read
 
 jobs:
+  gomodtidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "go mod tidy produced changes — commit the updated go.mod/go.sum"
+            exit 1
+          fi
+
+  gofmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          files=$(gofmt -l .)
+          if [ -n "$files" ]; then
+            echo "Unformatted files:"
+            echo "$files"
+            exit 1
+          fi
+
   golangci-lint:
     runs-on: ubuntu-latest
     steps:
