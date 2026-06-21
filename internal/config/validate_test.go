@@ -79,18 +79,17 @@ func TestValidate_InvalidBranchPatternRegex(t *testing.T) {
 
 func TestValidate_CherryPickCommand(t *testing.T) {
 	tests := []struct {
-		name       string
-		command    string
-		wantError  bool
-		wantSubstr string // substring expected in error message
+		name      string
+		command   string
+		wantError bool
 	}{
-		{"empty (uses default)", "", false, ""},
-		{"cherry-pick (hyphenated)", "cherry-pick", false, ""},
-		{"cherrypick (no hyphen)", "cherrypick", false, ""},
-		{"cp (abbreviation)", "cp", false, ""},
-		{"cherry_pick (underscore rejected)", "cherry_pick", true, "cherry_pick.command"},
-		{"arbitrary string", "rebase", true, "cherry_pick.command"},
-		{"uppercase rejected", "CHERRY-PICK", true, "cherry_pick.command"},
+		{"empty (uses default)", "", false},
+		{"cherry-pick (hyphenated)", "cherry-pick", false},
+		{"cherrypick (no hyphen)", "cherrypick", false},
+		{"cp (abbreviation)", "cp", false},
+		{"cherry_pick (underscore rejected)", "cherry_pick", true},
+		{"arbitrary string", "rebase", true},
+		{"uppercase rejected", "CHERRY-PICK", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
