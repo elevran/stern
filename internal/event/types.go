@@ -1,6 +1,10 @@
 package event
 
-import "github.com/google/go-github/v72/github"
+import (
+	"github.com/google/go-github/v72/github"
+
+	ighub "github.com/elevran/stern/internal/github"
+)
 
 // Type aliases — callers import event, not go-github directly.
 type (
@@ -27,5 +31,5 @@ type Context struct {
 	IssueNumber int
 
 	// PR is non-nil when the slash-command targets a pull request.
-	PR *github.PullRequest
+	PR *ighub.PullRequest
 }

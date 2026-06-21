@@ -2,15 +2,12 @@ package merge
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"strings"
 
-	gh "github.com/google/go-github/v72/github"
 	"github.com/sirupsen/logrus"
 
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
 )
 
@@ -23,10 +20,10 @@ type EligibilityResult struct {
 
 // CheckEligibility determines whether pr is ready for auto-merge based on opts.
 // A PR is ready when it has all required labels and none of the blocking labels.
-func CheckEligibility(pr *gh.PullRequest, opts *config.Options) EligibilityResult {
+func CheckEligibility(pr github.PullRequest, opts *config.Options) EligibilityResult {
 	present := make(map[string]bool)
 	for _, l := range pr.Labels {
-		present[strings.ToLower(l.GetName())] = true
+		present[strings.ToLower(l)] = true
 	}
 
 	var missing, blocking []string
@@ -60,9 +57,9 @@ func CheckEligibility(pr *gh.PullRequest, opts *config.Options) EligibilityResul
 // CheckAndApplyAutoMerge calls CheckEligibility and enables/disables auto-merge
 // on the PR accordingly. It is a convenience wrapper used by label-modifying handlers.
 // Auto-merge errors are non-fatal: the primary label operation already succeeded.
-func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient, pr *gh.PullRequest, opts *config.Options) error {
+func CheckAndApplyAutoMerge(ctx context.Context, ghc github.PullRequestsClient, pr github.PullRequest, opts *config.Options) error {
 	result := CheckEligibility(pr, opts)
-	nodeID := pr.GetNodeID()
+	nodeID := pr.NodeID
 	if result.Ready {
 		method := opts.Merge.Method
 		if method == "" {
@@ -84,7 +81,7 @@ func CheckAndApplyAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient
 // DisableAutoMerge disables GitHub's native auto-merge on a PR. If the feature
 // is unavailable for this repository, the error is logged at debug level and nil
 // is returned — disabling is a no-op when auto-merge was never enabled.
-func DisableAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient, nodeID string) error {
+func DisableAutoMerge(ctx context.Context, ghc github.PullRequestsClient, nodeID string) error {
 	if err := ghc.DisableAutoMerge(ctx, nodeID); err != nil {
 		if isAutoMergeUnavailable(err) {
 			logrus.WithError(err).Debug("auto-merge: disable skipped — feature not available for this repository")
@@ -100,11 +97,4 @@ func DisableAutoMerge(ctx context.Context, ghc ghclient.PullRequestsClient, node
 // repository level (Settings → General → Allow auto-merge) or the token lacks access.
 func isAutoMergeUnavailable(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "Resource not accessible by integration")
-}
-
-// IsNotFoundError reports whether err is a 404 from the GitHub API.
-func IsNotFoundError(err error) bool {
-	var ghErr *gh.ErrorResponse
-	return errors.As(err, &ghErr) && ghErr.Response != nil &&
-		ghErr.Response.StatusCode == http.StatusNotFound
 }

@@ -5,10 +5,8 @@ import (
 	"os"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 )
 
 func TestDiffLabels_Create(t *testing.T) {
@@ -25,8 +23,8 @@ func TestDiffLabels_OK(t *testing.T) {
 	desired := []config.LabelDefinition{
 		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
-	current := []*gh.Label{
-		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("Looks good to me")},
+	current := []github.Label{
+		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
 	plan := config.DiffLabels(desired, current)
 	if len(plan.Unchanged) != 1 {
@@ -38,8 +36,8 @@ func TestDiffLabels_Update_Color(t *testing.T) {
 	desired := []config.LabelDefinition{
 		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
 	}
-	current := []*gh.Label{
-		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("ffffff"), Description: gh.Ptr("Looks good to me")},
+	current := []github.Label{
+		{Name: "lgtm", Color: "ffffff", Description: "Looks good to me"},
 	}
 	plan := config.DiffLabels(desired, current)
 	if len(plan.Updates) != 1 {
@@ -51,8 +49,8 @@ func TestDiffLabels_Update_Description(t *testing.T) {
 	desired := []config.LabelDefinition{
 		{Name: "lgtm", Color: "0e8a16", Description: "New description"},
 	}
-	current := []*gh.Label{
-		{Name: gh.Ptr("lgtm"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("Old description")},
+	current := []github.Label{
+		{Name: "lgtm", Color: "0e8a16", Description: "Old description"},
 	}
 	plan := config.DiffLabels(desired, current)
 	if len(plan.Updates) != 1 {
@@ -61,8 +59,8 @@ func TestDiffLabels_Update_Description(t *testing.T) {
 }
 
 func TestDiffLabels_Extra(t *testing.T) {
-	current := []*gh.Label{
-		{Name: gh.Ptr("extra-label"), Color: gh.Ptr("000000"), Description: gh.Ptr("Not in config")},
+	current := []github.Label{
+		{Name: "extra-label", Color: "000000", Description: "Not in config"},
 	}
 	plan := config.DiffLabels(nil, current)
 	if len(plan.Extras) != 1 {
@@ -71,9 +69,9 @@ func TestDiffLabels_Extra(t *testing.T) {
 }
 
 func TestDiffLabels_NoPrune(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	current := []*gh.Label{
-		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
+	ghc := github.NewMockClient()
+	current := []github.Label{
+		{Name: "extra", Color: "000000", Description: ""},
 	}
 	plan := config.DiffLabels(nil, current)
 	if err := plan.Apply(context.Background(), ghc, "owner", "repo", false); err != nil {
@@ -85,10 +83,10 @@ func TestDiffLabels_NoPrune(t *testing.T) {
 }
 
 func TestDiffLabels_WithPrune(t *testing.T) {
-	ghc := ghclient.NewMockClient()
-	ghc.RepoLabels["extra"] = &gh.Label{Name: gh.Ptr("extra")}
-	current := []*gh.Label{
-		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
+	ghc := github.NewMockClient()
+	ghc.RepoLabels["extra"] = github.Label{Name: "extra"}
+	current := []github.Label{
+		{Name: "extra", Color: "000000", Description: ""},
 	}
 	plan := config.DiffLabels(nil, current)
 	if err := plan.Apply(context.Background(), ghc, "owner", "repo", true); err != nil {
@@ -100,7 +98,7 @@ func TestDiffLabels_WithPrune(t *testing.T) {
 }
 
 func TestApply_Create(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	desired := []config.LabelDefinition{
 		{Name: "lgtm", Color: "0e8a16", Description: "desc"},
 	}
@@ -119,10 +117,10 @@ func TestPrint(t *testing.T) {
 		{Name: "approved", Color: "0e8a16", Description: "approved"},
 		{Name: "hold", Color: "e11d48", Description: "hold"},
 	}
-	current := []*gh.Label{
-		{Name: gh.Ptr("approved"), Color: gh.Ptr("0e8a16"), Description: gh.Ptr("approved")},
-		{Name: gh.Ptr("hold"), Color: gh.Ptr("ffffff"), Description: gh.Ptr("hold")},
-		{Name: gh.Ptr("extra"), Color: gh.Ptr("000000"), Description: gh.Ptr("")},
+	current := []github.Label{
+		{Name: "approved", Color: "0e8a16", Description: "approved"},
+		{Name: "hold", Color: "ffffff", Description: "hold"},
+		{Name: "extra", Color: "000000", Description: ""},
 	}
 	plan := config.DiffLabels(desired, current)
 	// Just ensure it doesn't panic and produces output.

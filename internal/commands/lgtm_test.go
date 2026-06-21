@@ -4,23 +4,22 @@ import (
 	"context"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 )
 
-func prContext(prAuthor string) (*event.Context, *ghclient.MockClient) {
-	ghc := ghclient.NewMockClient()
-	pr := &gh.PullRequest{
-		Number: gh.Ptr(1),
-		User:   &gh.User{Login: gh.Ptr(prAuthor)},
-		Head:   &gh.PullRequestBranch{SHA: gh.Ptr("abc123")},
-		Labels: []*gh.Label{},
+func prContext(prAuthor string) (*event.Context, *github.MockClient) {
+	ghc := github.NewMockClient()
+	p := &github.PullRequest{
+		Number:  1,
+		Author:  prAuthor,
+		HeadSHA: "abc123",
+		NodeID:  "test-node-id",
+		Labels:  []string{},
 	}
-	ghc.PullRequests[1] = pr
+	ghc.PullRequests[1] = p
 
 	sc := &event.Context{
 		Org:         "elevran",
@@ -28,7 +27,7 @@ func prContext(prAuthor string) (*event.Context, *ghclient.MockClient) {
 		CommentID:   10,
 		Author:      "reviewer",
 		IssueNumber: 1,
-		PR:          pr,
+		PR:          p,
 	}
 	return sc, ghc
 }
@@ -105,7 +104,7 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "outsider"
 	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - alice\n  - bob\n")
-	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("README.md")}}
+	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
@@ -122,7 +121,7 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "anyone"
 	// No OWNERS files loaded in mock
-	ghc.PRFiles[1] = []*gh.CommitFile{{Filename: gh.Ptr("README.md")}}
+	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
@@ -143,7 +142,7 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 		IssueNumber: 5,
 		PR:          nil, // not a PR
 	}
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 

@@ -4,11 +4,9 @@ import (
 	"context"
 	"strings"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/labels"
 	"github.com/elevran/stern/internal/merge"
 	"github.com/elevran/stern/internal/owners"
@@ -16,9 +14,9 @@ import (
 
 // lgtmClient is the minimum Client surface LGTMHandler uses.
 type lgtmClient interface {
-	ghclient.LabelsClient
-	ghclient.PullRequestsClient
-	ghclient.ContentClient
+	github.LabelsClient
+	github.PullRequestsClient
+	github.ContentClient
 }
 
 // LGTMHandler handles /lgtm and /lgtm cancel.
@@ -29,7 +27,7 @@ type LGTMHandler struct {
 }
 
 // NewLGTMHandler constructs a LGTMHandler with all dependencies injected.
-func NewLGTMHandler(_ *event.Context, ghc ghclient.Client, opts *config.Options) Handler {
+func NewLGTMHandler(_ *event.Context, ghc github.Client, opts *config.Options) Handler {
 	return &LGTMHandler{ghc: ghc, opts: opts}
 }
 
@@ -40,7 +38,7 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
 		return nil
 	}
-	if !h.opts.LGTM.AllowSelfLGTM && sc.PR.User.GetLogin() == sc.Author {
+	if !h.opts.LGTM.AllowSelfLGTM && sc.PR.Author == sc.Author {
 		return PermissionError("you cannot LGTM your own pull request")
 	}
 	return h.checkLGTMOwners(ctx, sc)
@@ -48,7 +46,7 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 
 func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if len(args) > 0 && strings.EqualFold(args[0], "cancel") {
-		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !merge.IsNotFoundError(err) {
+		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !github.IsNotFoundError(err) {
 			return err
 		}
 		pr, err := h.ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
@@ -69,14 +67,14 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
-	if sc.PR.Head == nil {
+	if sc.PR.HeadSHA == "" {
 		return nil
 	}
 	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {
 		return err
 	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.Head.GetSHA(), fileNames(files))
+	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
 	if err != nil {
 		return err
 	}
@@ -87,13 +85,4 @@ func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) er
 		return PermissionError("%s is not in the OWNERS reviewers list for this PR's changed files", sc.Author)
 	}
 	return nil
-}
-
-// fileNames extracts filenames from a list of commit files.
-func fileNames(files []*gh.CommitFile) []string {
-	names := make([]string, len(files))
-	for i, f := range files {
-		names[i] = f.GetFilename()
-	}
-	return names
 }

@@ -5,22 +5,17 @@ import (
 	"fmt"
 	"testing"
 
-	gh "github.com/google/go-github/v72/github"
-
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/merge"
 )
 
-func pr(labelNames ...string) *gh.PullRequest {
-	labels := make([]*gh.Label, len(labelNames))
-	for i, n := range labelNames {
-		name := n
-		labels[i] = &gh.Label{Name: &name}
+func pr(labelNames ...string) github.PullRequest {
+	return github.PullRequest{
+		Number: 1,
+		NodeID: "test-node-id",
+		Labels: labelNames,
 	}
-	num := 1
-	nodeID := "test-node-id"
-	return &gh.PullRequest{Number: &num, NodeID: &nodeID, Labels: labels}
 }
 
 func opts() *config.Options {
@@ -101,7 +96,7 @@ func TestCheckEligibility_MultipleBlockers(t *testing.T) {
 }
 
 func TestCheckAndApplyAutoMerge_DisableUnavailable_NonFatal(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
 
 	// Only lgtm — not eligible, so DisableAutoMerge is called.
@@ -112,7 +107,7 @@ func TestCheckAndApplyAutoMerge_DisableUnavailable_NonFatal(t *testing.T) {
 }
 
 func TestCheckAndApplyAutoMerge_EnableUnavailable_NonFatal(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.Errors["EnableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
 
 	// Both labels present — eligible, so EnableAutoMerge is called.
@@ -123,7 +118,7 @@ func TestCheckAndApplyAutoMerge_EnableUnavailable_NonFatal(t *testing.T) {
 }
 
 func TestCheckAndApplyAutoMerge_OtherDisableError_Propagates(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: something unexpected")
 
 	p := pr("lgtm")
@@ -133,7 +128,7 @@ func TestCheckAndApplyAutoMerge_OtherDisableError_Propagates(t *testing.T) {
 }
 
 func TestDisableAutoMerge_Unavailable_ReturnsNil(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: Resource not accessible by integration")
 
 	if err := merge.DisableAutoMerge(context.Background(), ghc, "PR_test_node_id"); err != nil {
@@ -142,7 +137,7 @@ func TestDisableAutoMerge_Unavailable_ReturnsNil(t *testing.T) {
 }
 
 func TestDisableAutoMerge_OtherError_Propagates(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	ghc.Errors["DisableAutoMerge"] = fmt.Errorf("graphql: some real failure")
 
 	if err := merge.DisableAutoMerge(context.Background(), ghc, "PR_test_node_id"); err == nil {
@@ -151,7 +146,7 @@ func TestDisableAutoMerge_OtherError_Propagates(t *testing.T) {
 }
 
 func TestCheckAndApplyAutoMerge_EnablesWhenReady(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	p := pr("lgtm", "approved")
 	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
 		t.Errorf("CheckAndApplyAutoMerge() error = %v", err)
@@ -162,7 +157,7 @@ func TestCheckAndApplyAutoMerge_EnablesWhenReady(t *testing.T) {
 }
 
 func TestCheckAndApplyAutoMerge_DisablesWhenNotReady(t *testing.T) {
-	ghc := ghclient.NewMockClient()
+	ghc := github.NewMockClient()
 	p := pr("lgtm") // missing approved
 	if err := merge.CheckAndApplyAutoMerge(context.Background(), ghc, p, opts()); err != nil {
 		t.Errorf("CheckAndApplyAutoMerge() error = %v", err)

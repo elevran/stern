@@ -1,4 +1,4 @@
-package ghclient
+package github
 
 import (
 	"context"

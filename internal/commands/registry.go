@@ -10,7 +10,7 @@ import (
 
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
-	"github.com/elevran/stern/internal/ghclient"
+	"github.com/elevran/stern/internal/github"
 )
 
 // Handler processes a single slash command.
@@ -25,7 +25,7 @@ type Handler interface {
 }
 
 // HandlerFactory creates a configured Handler for the given call context.
-type HandlerFactory func(sc *event.Context, ghc ghclient.Client, opts *config.Options) Handler
+type HandlerFactory func(sc *event.Context, ghc github.Client, opts *config.Options) Handler
 
 // Registry maps command verbs to handler factories.
 type Registry map[string]HandlerFactory
@@ -51,7 +51,7 @@ func PermissionError(format string, args ...any) error {
 // Pre errors: -1 reaction for ErrPermission, confused for internal errors.
 // Handle errors: same routing. Post errors are logged but do not affect reactions.
 // Unknown verb: logged only, no reaction.
-func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry, ghc ghclient.Client, opts *config.Options) {
+func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry, ghc github.Client, opts *config.Options) {
 	log := logrus.WithFields(logrus.Fields{
 		"org":    sc.Org,
 		"repo":   sc.Repo,
@@ -104,7 +104,7 @@ func Dispatch(ctx context.Context, sc *event.Context, body string, reg Registry,
 	}
 }
 
-func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc ghclient.Client, verb string, err error) {
+func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc github.Client, verb string, err error) {
 	var permErr *ErrPermission
 	if errors.As(err, &permErr) {
 		log.WithField("command", "/"+verb).WithError(err).Info("permission denied")
@@ -132,7 +132,7 @@ func DefaultRegistry() Registry {
 	}
 }
 
-func newPingHandler(_ *event.Context, _ ghclient.Client, _ *config.Options) Handler {
+func newPingHandler(_ *event.Context, _ github.Client, _ *config.Options) Handler {
 	return &pingHandler{}
 }
 
