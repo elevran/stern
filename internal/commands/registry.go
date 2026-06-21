@@ -157,6 +157,9 @@ func DefaultRegistry() Registry {
 		"cc":        NewCCHandler("cc"),
 		"uncc":      NewCCHandler("uncc"),
 		"retest":    NewRetestHandler,
+		"kind":      NewKindHandler,
+		"area":      NewAreaHandler,
+		"priority":  NewPriorityHandler,
 	}
 }
 
