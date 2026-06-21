@@ -73,6 +73,13 @@ type ChecksClient interface {
 	RerunCheckRun(ctx context.Context, owner, repo string, id int64) error
 }
 
+// ReviewsClient covers PR review submission and dismissal.
+type ReviewsClient interface {
+	ListPullRequestReviews(ctx context.Context, owner, repo string, number int) ([]Review, error)
+	CreatePullRequestReview(ctx context.Context, owner, repo string, number int, event, body string) error
+	DismissPullRequestReview(ctx context.Context, owner, repo string, number int, reviewID int64, msg string) error
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -84,6 +91,7 @@ type Client interface {
 	MilestoneClient
 	UsersClient
 	ChecksClient
+	ReviewsClient
 }
 
 type realClient struct {
@@ -328,6 +336,25 @@ func (c *realClient) ListMilestones(ctx context.Context, owner, repo string) ([]
 	return all, nil
 }
 
+func (c *realClient) ListPullRequestReviews(ctx context.Context, owner, repo string, number int) ([]Review, error) {
+	var all []Review
+	opts := &gh.ListOptions{PerPage: 100}
+	for {
+		reviews, resp, err := c.ghc.PullRequests.ListReviews(ctx, owner, repo, number, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range reviews {
+			all = append(all, reviewFromGH(r))
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return all, nil
+}
+
 func (c *realClient) SetMilestone(ctx context.Context, owner, repo string, number int, milestoneID int) error {
 	_, _, err := c.ghc.Issues.Edit(ctx, owner, repo, number, &gh.IssueRequest{
 		Milestone: &milestoneID,
@@ -377,6 +404,21 @@ func (c *realClient) RerunCheckRun(ctx context.Context, owner, repo string, id i
 	return err
 }
 
+func (c *realClient) CreatePullRequestReview(ctx context.Context, owner, repo string, number int, event, body string) error {
+	req := &gh.PullRequestReviewRequest{
+		Event: gh.Ptr(event),
+		Body:  gh.Ptr(body),
+	}
+	_, _, err := c.ghc.PullRequests.CreateReview(ctx, owner, repo, number, req)
+	return err
+}
+
+func (c *realClient) DismissPullRequestReview(ctx context.Context, owner, repo string, number int, reviewID int64, msg string) error {
+	req := &gh.PullRequestReviewDismissalRequest{Message: gh.Ptr(msg)}
+	_, _, err := c.ghc.PullRequests.DismissReview(ctx, owner, repo, number, reviewID, req)
+	return err
+}
+
 // dryRunClient wraps a Client and logs mutating calls without executing them.
 type dryRunClient struct {
 	inner  Client
@@ -412,6 +454,10 @@ func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) (
 }
 func (c *dryRunClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
 	return c.inner.ListFailedCheckRuns(ctx, owner, repo, sha)
+}
+
+func (c *dryRunClient) ListPullRequestReviews(ctx context.Context, owner, repo string, number int) ([]Review, error) {
+	return c.inner.ListPullRequestReviews(ctx, owner, repo, number)
 }
 
 // Mutating methods: log and no-op.
@@ -485,5 +531,13 @@ func (c *dryRunClient) RemoveReviewers(_ context.Context, owner, repo string, nu
 }
 func (c *dryRunClient) RerunCheckRun(_ context.Context, owner, repo string, id int64) error {
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "id": id}).Info("[dry-run] RerunCheckRun")
+	return nil
+}
+func (c *dryRunClient) CreatePullRequestReview(_ context.Context, owner, repo string, number int, event, body string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "event": event, "body": body}).Info("[dry-run] CreatePullRequestReview")
+	return nil
+}
+func (c *dryRunClient) DismissPullRequestReview(_ context.Context, owner, repo string, number int, reviewID int64, msg string) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "reviewID": reviewID, "msg": msg}).Info("[dry-run] DismissPullRequestReview")
 	return nil
 }

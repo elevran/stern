@@ -38,6 +38,13 @@ type CheckRun struct {
 	Conclusion string // "failure", "timed_out", "cancelled", "action_required", "success", "skipped", "neutral", ""
 }
 
+// Review represents a GitHub pull request review.
+type Review struct {
+	ID    int64
+	State string // "APPROVED", "DISMISSED", "COMMENTED", etc.
+	Login string // reviewer login
+}
+
 // IsNotFoundError reports whether err is a 404 from the GitHub API.
 func IsNotFoundError(err error) bool {
 	var ghErr *gh.ErrorResponse
@@ -87,5 +94,18 @@ func labelFromGH(l *gh.Label) Label {
 		Name:        l.GetName(),
 		Color:       l.GetColor(),
 		Description: l.GetDescription(),
+	}
+}
+
+// reviewFromGH converts a go-github PullRequestReview to the internal type.
+func reviewFromGH(r *gh.PullRequestReview) Review {
+	var login string
+	if r.User != nil {
+		login = r.User.GetLogin()
+	}
+	return Review{
+		ID:    r.GetID(),
+		State: r.GetState(),
+		Login: login,
 	}
 }
