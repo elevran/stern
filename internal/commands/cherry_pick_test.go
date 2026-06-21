@@ -24,7 +24,7 @@ func withGitExec(t *testing.T, stub func(args ...string) error) {
 
 // cherryPickReg returns a registry with the cherry-pick handler wired up.
 func cherryPickReg() commands.Registry {
-	return commands.Registry{"cherry-pick": commands.NewCherryPickHandler}
+	return commands.Registry{"cherry-pick": {Factory: commands.NewCherryPickHandler}}
 }
 
 func cherryPickOpts(pattern string) *config.Options {

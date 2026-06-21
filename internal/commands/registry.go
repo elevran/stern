@@ -157,7 +157,6 @@ func dispatchErr(ctx context.Context, log *logrus.Entry, sc *event.Context, ghc 
 // DefaultRegistry returns a Registry with all supported handlers pre-registered.
 func DefaultRegistry() Registry {
 	return Registry{
-<<<<<<< HEAD
 		"ping": {Factory: newPingHandler, Info: CommandInfo{
 			Short: "Check that the bot is alive",
 			Usage: "/ping",

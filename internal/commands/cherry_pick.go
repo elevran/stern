@@ -87,7 +87,7 @@ func (h *CherryPickHandler) commandVerb() string {
 	}
 }
 
-func (h *CherryPickHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
+func (h *CherryPickHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/%s may only be used on pull requests", h.commandVerb())
 	}
@@ -98,7 +98,7 @@ func (h *CherryPickHandler) Pre(_ context.Context, sc *event.Context, args []str
 		return PermissionError("/%s requires a target branch as the first argument", h.commandVerb())
 	}
 	target := args[0]
-	writer, err := h.ghc.HasWriteAccess(context.Background(), sc.Org, sc.Repo, sc.Author)
+	writer, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
 	if err != nil {
 		return err
 	}
@@ -117,17 +117,22 @@ func (h *CherryPickHandler) Handle(ctx context.Context, sc *event.Context, args 
 	newBranch := fmt.Sprintf("cherry-pick-%d-%s", sc.IssueNumber, target)
 	newTitle := fmt.Sprintf("[cherry-pick %s] %s", target, sc.PR.Title)
 
+	// git subcommand is always "cherry-pick" — never the user-facing
+	// commandVerb, which may be "cp" or "cherrypick". commandVerb() is
+	// only correct for /command error messages.
+	const gitCherryPick = "cherry-pick"
+
 	if err := gitExec("fetch", "origin", target); err != nil {
 		return fmt.Errorf("fetching %s: %w", target, err)
 	}
 	if err := gitExec("checkout", "-b", newBranch, "origin/"+target); err != nil {
 		return fmt.Errorf("creating branch: %w", err)
 	}
-	if err := gitExec(h.commandVerb(), sc.PR.MergeCommitSHA); err != nil {
-		_ = gitExec(h.commandVerb(), "--abort")
+	if err := gitExec(gitCherryPick, sc.PR.MergeCommitSHA); err != nil {
+		_ = gitExec(gitCherryPick, "--abort")
 		msg := fmt.Sprintf(
-			"Cherry-pick of #%d onto `%s` failed due to conflicts.\n\nTo resolve manually:\n```\ngit fetch origin\ngit checkout -b %s origin/%s\ngit %s %s\n# resolve conflicts, then:\ngit push origin %s\n```",
-			sc.IssueNumber, target, newBranch, target, h.commandVerb(), sc.PR.MergeCommitSHA, newBranch,
+			"Cherry-pick of #%d onto `%s` failed due to conflicts.\n\nTo resolve manually:\n```\ngit fetch origin\ngit checkout -b %s origin/%s\ngit cherry-pick %s\n# resolve conflicts, then:\ngit push origin %s\n```",
+			sc.IssueNumber, target, newBranch, target, sc.PR.MergeCommitSHA, newBranch,
 		)
 		// Conflict is not an internal error — comment and return nil so the
 		// +1 reaction still fires.

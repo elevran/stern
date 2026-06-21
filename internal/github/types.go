@@ -10,16 +10,16 @@ import (
 
 // PullRequest is a slim representation of a GitHub pull request.
 type PullRequest struct {
-	Number        int
-	Author        string
-	Title         string
-	IsDraft       bool
-	Labels        []string // label names only
-	NodeID        string
-	HeadSHA       string
-	Additions     int    // lines added in the PR diff
-	Deletions     int    // lines removed in the PR diff
-	Merged        bool   // true when the PR is merged (set by GetPullRequest on merged PRs)
+	Number         int
+	Author         string
+	Title          string
+	IsDraft        bool
+	Labels         []string // label names only
+	NodeID         string
+	HeadSHA        string
+	Additions      int    // lines added in the PR diff
+	Deletions      int    // lines removed in the PR diff
+	Merged         bool   // true when the PR is merged (set by GetPullRequest on merged PRs)
 	MergeCommitSHA string // SHA of the merge commit; empty until merged
 }
 

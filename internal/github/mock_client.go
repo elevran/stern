@@ -387,8 +387,8 @@ func (m *MockClient) CreatePullRequest(_ context.Context, _, _, title, head, bas
 	}
 	next := len(m.CreatedPRs) + 100 // 100+ to avoid collision with hand-set PR numbers like 1
 	m.CreatedPRs[next] = PullRequest{
-		Number: next,
-		Title:  title,
+		Number:  next,
+		Title:   title,
 		HeadSHA: "fake-head-sha",
 		Labels:  []string{},
 	}
