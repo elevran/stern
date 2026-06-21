@@ -1,0 +1,23 @@
+{
+  "action": "opened",
+  "issue": {
+    "url": "https://api.github.com/repos/elevran/stern/issues/7",
+    "id": 7,
+    "number": 7,
+    "state": "open",
+    "title": "Test issue",
+    "user": {
+      "login": "bob"
+    }
+  },
+  "sender": {
+    "login": "bob"
+  },
+  "repository": {
+    "full_name": "elevran/stern",
+    "name": "stern",
+    "owner": {
+      "login": "elevran"
+    }
+  }
+}

@@ -101,3 +101,109 @@ func TestIsBot(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePREvent(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	testdata := filepath.Join(filepath.Dir(file), "testdata", "pull_request_opened.json")
+	t.Setenv("GITHUB_EVENT_PATH", testdata)
+
+	evt, err := ParsePREvent()
+	if err != nil {
+		t.Fatalf("ParsePREvent() error = %v", err)
+	}
+	if got := evt.GetAction(); got != "opened" {
+		t.Errorf("action = %q, want %q", got, "opened")
+	}
+	if got := evt.GetNumber(); got != 42 {
+		t.Errorf("number = %d, want 42", got)
+	}
+	if got := evt.GetSender().GetLogin(); got != "alice" {
+		t.Errorf("sender login = %q, want alice", got)
+	}
+	pr := evt.GetPullRequest()
+	if pr == nil {
+		t.Fatal("expected PullRequest to be non-nil")
+	}
+	if got := pr.GetTitle(); got != "Add IsBot helper" {
+		t.Errorf("PR title = %q, want %q", got, "Add IsBot helper")
+	}
+}
+
+func TestParseIssueEvent(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	testdata := filepath.Join(filepath.Dir(file), "testdata", "issues_opened.json")
+	t.Setenv("GITHUB_EVENT_PATH", testdata)
+
+	evt, err := ParseIssueEvent()
+	if err != nil {
+		t.Fatalf("ParseIssueEvent() error = %v", err)
+	}
+	if got := evt.GetAction(); got != "opened" {
+		t.Errorf("action = %q, want %q", got, "opened")
+	}
+	issue := evt.GetIssue()
+	if issue == nil {
+		t.Fatal("expected Issue to be non-nil")
+	}
+	if got := issue.GetNumber(); got != 7 {
+		t.Errorf("issue number = %d, want 7", got)
+	}
+	if got := issue.GetTitle(); got != "Test issue" {
+		t.Errorf("issue title = %q, want %q", got, "Test issue")
+	}
+	if got := evt.GetSender().GetLogin(); got != "bob" {
+		t.Errorf("sender login = %q, want bob", got)
+	}
+}
+
+func TestActionsRunURL(t *testing.T) {
+	t.Run("both set on github.com", func(t *testing.T) {
+		t.Setenv("GITHUB_SERVER_URL", "https://github.com")
+		t.Setenv("GITHUB_REPOSITORY", "elevran/stern")
+		t.Setenv("GITHUB_RUN_ID", "12345")
+
+		if got, want := ActionsRunURL(), "https://github.com/elevran/stern/actions/runs/12345"; got != want {
+			t.Errorf("ActionsRunURL() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("custom server URL", func(t *testing.T) {
+		t.Setenv("GITHUB_SERVER_URL", "https://github.example.com")
+		t.Setenv("GITHUB_REPOSITORY", "elevran/stern")
+		t.Setenv("GITHUB_RUN_ID", "99")
+
+		if got, want := ActionsRunURL(), "https://github.example.com/elevran/stern/actions/runs/99"; got != want {
+			t.Errorf("ActionsRunURL() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("server URL defaults when unset", func(t *testing.T) {
+		t.Setenv("GITHUB_SERVER_URL", "")
+		t.Setenv("GITHUB_REPOSITORY", "elevran/stern")
+		t.Setenv("GITHUB_RUN_ID", "1")
+
+		if got, want := ActionsRunURL(), "https://github.com/elevran/stern/actions/runs/1"; got != want {
+			t.Errorf("ActionsRunURL() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("repo missing returns empty", func(t *testing.T) {
+		t.Setenv("GITHUB_SERVER_URL", "https://github.com")
+		t.Setenv("GITHUB_REPOSITORY", "")
+		t.Setenv("GITHUB_RUN_ID", "1")
+
+		if got := ActionsRunURL(); got != "" {
+			t.Errorf("ActionsRunURL() = %q, want empty", got)
+		}
+	})
+
+	t.Run("run ID missing returns empty", func(t *testing.T) {
+		t.Setenv("GITHUB_SERVER_URL", "https://github.com")
+		t.Setenv("GITHUB_REPOSITORY", "elevran/stern")
+		t.Setenv("GITHUB_RUN_ID", "")
+
+		if got := ActionsRunURL(); got != "" {
+			t.Errorf("ActionsRunURL() = %q, want empty", got)
+		}
+	})
+}

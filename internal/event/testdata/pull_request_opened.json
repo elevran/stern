@@ -1,0 +1,25 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "url": "https://api.github.com/repos/elevran/stern/pulls/42",
+    "id": 1,
+    "number": 42,
+    "state": "open",
+    "title": "Add IsBot helper",
+    "user": {
+      "login": "alice"
+    },
+    "draft": false
+  },
+  "sender": {
+    "login": "alice"
+  },
+  "repository": {
+    "full_name": "elevran/stern",
+    "name": "stern",
+    "owner": {
+      "login": "elevran"
+    }
+  }
+}
