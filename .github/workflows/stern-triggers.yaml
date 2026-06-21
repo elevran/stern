@@ -14,9 +14,8 @@ on:
   # check_suite:
   #   types: [completed]
 
-  # Uncomment when lifecycle sweep is ready (Task 1.4 / lifecycle plugin):
-  # schedule:
-  #   - cron: '0 6 * * *'
+  schedule:
+    - cron: '0 6 * * *'
 
 jobs:
   slash-command:
@@ -112,24 +111,23 @@ jobs:
   #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   #       run: go run ./cmd/stern/ merge-check --config .github/stern.yaml
 
-  # Uncomment when lifecycle plugin is ready:
-  # lifecycle-sweep:
-  #   name: lifecycle-sweep
-  #   if: github.event_name == 'schedule'
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     issues: write
-  #     pull-requests: write
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #       with:
-  #         ref: main
-  #     - uses: actions/setup-go@v6
-  #       with:
-  #         go-version-file: go.mod
-  #         cache: true
-  #     - name: Run lifecycle
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: go run ./cmd/stern/ lifecycle --config .github/stern.yaml
+  lifecycle-sweep:
+    name: lifecycle-sweep
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run lifecycle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./cmd/stern/ lifecycle --config .github/stern.yaml

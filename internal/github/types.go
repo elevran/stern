@@ -3,6 +3,7 @@ package github
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	gh "github.com/google/go-github/v72/github"
 )
@@ -31,6 +32,17 @@ type Label struct {
 type Milestone struct {
 	Number int
 	Title  string
+}
+
+// Item is a slim representation of a GitHub issue or pull request, used by
+// the lifecycle sweep. Both kinds surface through the Issues API; IsPR
+// distinguishes them via the pull_request key on the underlying response.
+type Item struct {
+	Number       int
+	Labels       []string
+	UpdatedAt    time.Time
+	IsPR         bool
+	HasMilestone bool // true when the item has a milestone set
 }
 
 // CheckRun represents a single GitHub check run on a ref.

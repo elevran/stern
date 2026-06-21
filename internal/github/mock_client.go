@@ -16,6 +16,7 @@ type MockClient struct {
 	WriteAccess  map[string]bool       // "owner/repo/user" -> has write
 	Milestones   map[int]Milestone     // milestone number -> Milestone
 	CheckRuns    map[string][]CheckRun // "owner/repo/sha" -> all check runs (caller filters)
+	Items        []Item                // open issues + pull requests returned by ListOpenItems
 
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
@@ -352,4 +353,11 @@ func (m *MockClient) RerunCheckRun(_ context.Context, _, _ string, id int64) err
 	}
 	m.RerunCheckRuns = append(m.RerunCheckRuns, id)
 	return nil
+}
+
+func (m *MockClient) ListOpenItems(_ context.Context, _, _ string) ([]Item, error) {
+	if err := m.err("ListOpenItems"); err != nil {
+		return nil, err
+	}
+	return m.Items, nil
 }
