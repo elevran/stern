@@ -34,5 +34,6 @@ func runPREvent(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return pr.HandlePREvent(context.Background(), ghc, org, repo, evt, globalOpts)
+	handler := pr.NewPREventHandler(ghc, globalOpts)
+	return handler.Handle(context.Background(), org, repo, evt)
 }
