@@ -166,6 +166,7 @@ func validOptions() *config.Options {
 		Lifecycle: config.LifecycleOptions{
 			StaleDays:  90,
 			RottenDays: 30,
+			CloseAfter: 30,
 		},
 	}
 }
@@ -175,15 +176,18 @@ func TestValidate_LifecycleDays(t *testing.T) {
 		name       string
 		staleDays  int
 		rottenDays int
+		closeAfter int
 		wantErr    bool
 	}{
-		{"defaults applied (both positive)", 90, 30, false},
-		{"explicit positive", 60, 14, false},
-		{"stale_days zero (rejected per #17/#74)", 0, 30, true},
-		{"rotten_days zero (rejected per #17/#74)", 90, 0, true},
-		{"both zero", 0, 0, true},
-		{"stale_days negative", -1, 30, true},
-		{"rotten_days negative", 90, -1, true},
+		{"defaults applied (all positive)", 90, 30, 30, false},
+		{"explicit positive", 60, 14, 7, false},
+		{"stale_days zero (rejected per #17/#74)", 0, 30, 30, true},
+		{"rotten_days zero (rejected per #17/#74)", 90, 0, 30, true},
+		{"close_after zero (rejected per #17/#74)", 90, 30, 0, true},
+		{"all zero", 0, 0, 0, true},
+		{"stale_days negative", -1, 30, 30, true},
+		{"rotten_days negative", 90, -1, 30, true},
+		{"close_after negative", 90, 30, -1, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -191,6 +195,7 @@ func TestValidate_LifecycleDays(t *testing.T) {
 			opts.Lifecycle = config.LifecycleOptions{
 				StaleDays:  tt.staleDays,
 				RottenDays: tt.rottenDays,
+				CloseAfter: tt.closeAfter,
 			}
 			issues := opts.Validate()
 			hasErr := false
@@ -200,12 +205,139 @@ func TestValidate_LifecycleDays(t *testing.T) {
 				}
 			}
 			if tt.wantErr {
-				assert.True(t, hasErr, "expected ERROR for stale=%d rotten=%d", tt.staleDays, tt.rottenDays)
+				assert.True(t, hasErr, "expected ERROR for stale=%d rotten=%d close_after=%d",
+					tt.staleDays, tt.rottenDays, tt.closeAfter)
 			} else {
-				assert.False(t, hasErr, "expected no ERROR for stale=%d rotten=%d", tt.staleDays, tt.rottenDays)
+				assert.False(t, hasErr, "expected no ERROR for stale=%d rotten=%d close_after=%d",
+					tt.staleDays, tt.rottenDays, tt.closeAfter)
 			}
 		})
 	}
+}
+
+func TestValidate_LifecycleEnabled(t *testing.T) {
+	opts := validOptions()
+	opts.Lifecycle.Enabled = true
+	issues := opts.Validate()
+	for _, e := range issues {
+		if strings.Contains(e.Error(), "lifecycle.") {
+			t.Errorf("expected no lifecycle errors with Enabled=true and valid timing, got: %v", issues)
+		}
+	}
+}
+
+func TestValidate_LifecyclePerTypeOverrides(t *testing.T) {
+	tests := []struct {
+		name     string
+		override config.LifecycleItemOptions
+		field    string // substring expected in the failing issue.Field; empty means no error
+	}{
+		{"zero override (inherit)", config.LifecycleItemOptions{}, ""},
+		{"positive override", config.LifecycleItemOptions{StaleDays: 30, RottenDays: 14, CloseAfter: 7}, ""},
+		{"negative stale_days", config.LifecycleItemOptions{StaleDays: -1}, "lifecycle.issues.stale_days"},
+		{"negative rotten_days", config.LifecycleItemOptions{RottenDays: -1}, "lifecycle.issues.rotten_days"},
+		{"negative close_after", config.LifecycleItemOptions{CloseAfter: -1}, "lifecycle.issues.close_after"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.Lifecycle.Issues = tt.override
+			issues := opts.Validate()
+			if tt.field == "" {
+				for _, e := range issues {
+					if strings.HasPrefix(e.Field, "lifecycle.issues") {
+						t.Errorf("expected no lifecycle.issues error, got: %v", issues)
+					}
+				}
+				return
+			}
+			found := false
+			for _, e := range issues {
+				if e.Level == "ERROR" && strings.Contains(e.Field, tt.field) {
+					found = true
+				}
+			}
+			assert.True(t, found, "expected ERROR for %s, got: %v", tt.field, issues)
+		})
+	}
+
+	t.Run("pull_requests negative is reported under pull_requests prefix", func(t *testing.T) {
+		opts := validOptions()
+		opts.Lifecycle.PullRequests = config.LifecycleItemOptions{StaleDays: -1}
+		issues := opts.Validate()
+		found := false
+		for _, e := range issues {
+			if e.Level == "ERROR" && strings.Contains(e.Field, "lifecycle.pull_requests.stale_days") {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected ERROR for lifecycle.pull_requests.stale_days, got: %v", issues)
+	})
+}
+
+func TestLifecycle_ForIssuesForPRs(t *testing.T) {
+	t.Run("zero overrides inherit global defaults", func(t *testing.T) {
+		o := config.LifecycleOptions{
+			StaleDays:     90,
+			RottenDays:    30,
+			CloseAfter:    14,
+			StaleComment:  "g-stale",
+			RottenComment: "g-rotten",
+			CloseComment:  "g-close",
+		}
+		got := o.ForIssues()
+		assert.Equal(t, 90, got.StaleDays)
+		assert.Equal(t, 30, got.RottenDays)
+		assert.Equal(t, 14, got.CloseAfter)
+		assert.Equal(t, "g-stale", got.StaleComment)
+		assert.Equal(t, "g-rotten", got.RottenComment)
+		assert.Equal(t, "g-close", got.CloseComment)
+	})
+
+	t.Run("non-zero overrides win", func(t *testing.T) {
+		o := config.LifecycleOptions{
+			StaleDays:     90,
+			RottenDays:    30,
+			CloseAfter:    14,
+			StaleComment:  "g-stale",
+			RottenComment: "g-rotten",
+			CloseComment:  "g-close",
+			Issues: config.LifecycleItemOptions{
+				StaleDays:    60,
+				StaleComment: "i-stale",
+			},
+		}
+		got := o.ForIssues()
+		// Override fields take precedence.
+		assert.Equal(t, 60, got.StaleDays)
+		assert.Equal(t, "i-stale", got.StaleComment)
+		// Unset override fields fall back to global defaults.
+		assert.Equal(t, 30, got.RottenDays)
+		assert.Equal(t, 14, got.CloseAfter)
+		assert.Equal(t, "g-rotten", got.RottenComment)
+		assert.Equal(t, "g-close", got.CloseComment)
+	})
+
+	t.Run("ForPRs uses pull_requests overrides", func(t *testing.T) {
+		o := config.LifecycleOptions{
+			StaleDays:  90,
+			RottenDays: 30,
+			CloseAfter: 14,
+			PullRequests: config.LifecycleItemOptions{
+				StaleDays:  30,
+				RottenDays: 14,
+			},
+		}
+		gotPR := o.ForPRs()
+		assert.Equal(t, 30, gotPR.StaleDays)
+		assert.Equal(t, 14, gotPR.RottenDays)
+		assert.Equal(t, 14, gotPR.CloseAfter, "CloseAfter should inherit global default")
+
+		// ForIssues unaffected by PR overrides.
+		gotIssue := o.ForIssues()
+		assert.Equal(t, 90, gotIssue.StaleDays)
+		assert.Equal(t, 30, gotIssue.RottenDays)
+	})
 }
 
 func TestValidate_LabelDefinitions(t *testing.T) {

@@ -60,12 +60,27 @@ review_assignment:
   load_balancing: round-robin
 
 lifecycle:
-  # Days before an issue/PR is labeled lifecycle/stale.
+  # Master switch — the /lifecycle slash command and the scheduled sweep
+  # both no-op while this is false.
+  enabled: false
+  # Days of inactivity before an issue/PR is labeled lifecycle/stale.
   stale_days: 90
-  # Days after stale before lifecycle/rotten.
+  # Days a stale item must remain inactive before it becomes lifecycle/rotten.
   rotten_days: 30
-  # Close rotten issues/PRs automatically.
-  close_rotten: false
+  # Days a rotten item must remain inactive before it is closed.
+  close_after: 30
+  # When true, items transition directly from stale to closed (skipping rotten).
+  close_stale: false
+  # Comment posted on each transition; leave blank to suppress the comment.
+  stale_comment: "This item has been inactive for {{`{{.StaleDays}}`}} days and is now marked stale."
+  rotten_comment: "This item has been stale for {{`{{.RottenDays}}`}} days and is now marked rotten."
+  close_comment: "Closing due to inactivity."
+  # Per-type overrides (optional); zero/empty fields inherit the values above.
+  # issues:
+  #   stale_days: 60
+  # pull_requests:
+  #   stale_days: 30
+  #   rotten_days: 14
 
 # Label definitions — reconciled with the repo by: stern config sync-labels
 label_definitions:
