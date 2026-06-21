@@ -18,8 +18,33 @@ on:
     - cron: '0 6 * * *'
 
 jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build stern
+        run: go build -o stern ./cmd/stern/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stern-binary
+          path: stern
+          retention-days: 1
+
   slash-command:
     name: slash-command
+    needs: build
     if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/')
     runs-on: ubuntu-latest
     permissions:
@@ -35,18 +60,20 @@ jobs:
         with:
           ref: main
 
-      - uses: actions/setup-go@v6
+      - uses: actions/download-artifact@v4
         with:
-          go-version-file: go.mod
-          cache: true
+          name: stern-binary
+
+      - run: chmod +x stern
 
       - name: Run slash-command
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run ./cmd/stern/ slash-command --config .github/stern.yaml
+        run: ./stern slash-command --config .github/stern.yaml
 
   pr-event:
     name: pr-event
+    needs: build
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     permissions:
@@ -58,18 +85,20 @@ jobs:
         with:
           ref: main
 
-      - uses: actions/setup-go@v6
+      - uses: actions/download-artifact@v4
         with:
-          go-version-file: go.mod
-          cache: true
+          name: stern-binary
+
+      - run: chmod +x stern
 
       - name: Run pr-event
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run ./cmd/stern/ pr-event --config .github/stern.yaml
+        run: ./stern pr-event --config .github/stern.yaml
 
   issue-event:
     name: issue-event
+    needs: build
     if: github.event_name == 'issues'
     runs-on: ubuntu-latest
     permissions:
@@ -80,19 +109,21 @@ jobs:
         with:
           ref: main
 
-      - uses: actions/setup-go@v6
+      - uses: actions/download-artifact@v4
         with:
-          go-version-file: go.mod
-          cache: true
+          name: stern-binary
+
+      - run: chmod +x stern
 
       - name: Run issue-event
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run ./cmd/stern/ issue-event --config .github/stern.yaml
+        run: ./stern issue-event --config .github/stern.yaml
 
   # Uncomment when merge-check is ready (Task 1.5):
   # merge-check:
   #   name: merge-check
+  #   needs: build
   #   if: github.event_name == 'check_suite'
   #   runs-on: ubuntu-latest
   #   permissions:
@@ -102,17 +133,18 @@ jobs:
   #     - uses: actions/checkout@v7
   #       with:
   #         ref: main
-  #     - uses: actions/setup-go@v6
+  #     - uses: actions/download-artifact@v4
   #       with:
-  #         go-version-file: go.mod
-  #         cache: true
+  #         name: stern-binary
+  #     - run: chmod +x stern
   #     - name: Run merge-check
   #       env:
   #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: go run ./cmd/stern/ merge-check --config .github/stern.yaml
+  #       run: ./stern merge-check --config .github/stern.yaml
 
   lifecycle-sweep:
     name: lifecycle-sweep
+    needs: build
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
@@ -123,11 +155,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: main
-      - uses: actions/setup-go@v6
+      - uses: actions/download-artifact@v4
         with:
-          go-version-file: go.mod
-          cache: true
+          name: stern-binary
+      - run: chmod +x stern
       - name: Run lifecycle
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: go run ./cmd/stern/ lifecycle --config .github/stern.yaml
+        run: ./stern lifecycle --config .github/stern.yaml
