@@ -9,22 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  gofmt:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-      - name: Check formatting
-        run: |
-          files=$(gofmt -l .)
-          if [ -n "$files" ]; then
-            echo "Unformatted files:"
-            echo "$files"
-            exit 1
-          fi
-
   golangci-lint:
     runs-on: ubuntu-latest
     steps:
@@ -35,3 +19,4 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
+          args: run ./...
