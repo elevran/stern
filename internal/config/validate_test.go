@@ -193,6 +193,45 @@ func validOptions() *config.Options {
 	}
 }
 
+func TestValidate_LifecycleDays(t *testing.T) {
+	tests := []struct {
+		name       string
+		staleDays  int
+		rottenDays int
+		wantErr    bool
+	}{
+		{"defaults applied (both positive)", 90, 30, false},
+		{"explicit positive", 60, 14, false},
+		{"stale_days zero (rejected per #17/#74)", 0, 30, true},
+		{"rotten_days zero (rejected per #17/#74)", 90, 0, true},
+		{"both zero", 0, 0, true},
+		{"stale_days negative", -1, 30, true},
+		{"rotten_days negative", 90, -1, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.Lifecycle = config.LifecycleOptions{
+				StaleDays:  tt.staleDays,
+				RottenDays: tt.rottenDays,
+			}
+			issues := opts.Validate()
+			hasErr := false
+			for _, e := range issues {
+				if strings.Contains(e.Error(), "lifecycle.") {
+					hasErr = true
+				}
+			}
+			if tt.wantErr && !hasErr {
+				t.Errorf("expected ERROR for stale=%d rotten=%d, got: %v", tt.staleDays, tt.rottenDays, issues)
+			}
+			if !tt.wantErr && hasErr {
+				t.Errorf("expected no ERROR for stale=%d rotten=%d, got: %v", tt.staleDays, tt.rottenDays, issues)
+			}
+		})
+	}
+}
+
 func TestValidate_LabelDefinitions(t *testing.T) {
 	tests := []struct {
 		name      string
