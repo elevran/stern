@@ -6,9 +6,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/config"
+)
+
+var (
+	errorColor = color.New(color.FgRed)
+	warnColor  = color.New(color.FgYellow)
 )
 
 func newConfigCmd() *cobra.Command {
@@ -93,22 +99,27 @@ func newConfigCheckCmd() *cobra.Command {
 		Short:         "Validate stern.yaml and report all issues",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			out := cmd.OutOrStdout()
 			issues := globalOpts.Validate()
 			if len(issues) == 0 {
-				fmt.Printf("%s — No issues found\n", configPath)
+				fmt.Fprintf(out, "%s — No issues found\n", configPath)
 				return nil
 			}
-			fmt.Printf("%s — %d issue(s) found\n\n", configPath, len(issues))
+			fmt.Fprintf(out, "%s — %d issue(s) found\n\n", configPath, len(issues))
 			hasError := false
 			for _, e := range issues {
-				s := e.Error()
-				fmt.Printf("  %s\n", s)
-				if e.Level == "ERROR" {
+				switch e.Level {
+				case "ERROR":
+					errorColor.Fprintf(out, "  ERROR  %s: %s\n", e.Field, e.Message)
 					hasError = true
+				case "WARN":
+					warnColor.Fprintf(out, "  WARN   %s: %s\n", e.Field, e.Message)
+				default:
+					fmt.Fprintf(out, "  %s\n", e.Error())
 				}
 			}
-			fmt.Println()
+			fmt.Fprintln(out)
 			if hasError {
 				// Use os.Exit(1) rather than returning an error so Cobra does
 				// not print its own "Error: ..." line after our validation output
