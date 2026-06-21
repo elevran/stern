@@ -13,10 +13,6 @@ func retestOpts() *config.Options {
 	return &config.Options{}
 }
 
-func writeOpts() *config.Options {
-	return &config.Options{}
-}
-
 func TestRetest_NoFailedChecks_PostsComment(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "reviewer"
@@ -53,7 +49,7 @@ func TestRetest_SingleFailedCheck_RerunsIt(t *testing.T) {
 	}
 
 	reg := commands.Registry{"retest": commands.NewRetestHandler}
-	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, writeOpts())
+	commands.Dispatch(context.Background(), sc, "/retest", reg, ghc, retestOpts())
 
 	if len(ghc.RerunCheckRuns) != 1 || ghc.RerunCheckRuns[0] != 42 {
 		t.Errorf("expected one RerunCheckRun(42), got %v", ghc.RerunCheckRuns)
