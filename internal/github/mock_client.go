@@ -38,6 +38,11 @@ type MockClient struct {
 	ReviewersRemoved   []UsersRecord
 	RerunCheckRuns     []int64 // check run IDs passed to RerunCheckRun
 
+	// EnableAutoMergeCallCount is the number of EnableAutoMerge invocations.
+	EnableAutoMergeCallCount int
+	// DisableAutoMergeCallCount is the number of DisableAutoMerge invocations.
+	DisableAutoMergeCallCount int
+
 	// Return errors for specific method names.
 	Errors map[string]error
 }
@@ -191,6 +196,7 @@ func (m *MockClient) HasWriteAccess(_ context.Context, owner, repo, user string)
 }
 
 func (m *MockClient) EnableAutoMerge(_ context.Context, nodeID string, _ string) error {
+	m.EnableAutoMergeCallCount++
 	if err := m.err("EnableAutoMerge"); err != nil {
 		return err
 	}
@@ -199,6 +205,7 @@ func (m *MockClient) EnableAutoMerge(_ context.Context, nodeID string, _ string)
 }
 
 func (m *MockClient) DisableAutoMerge(_ context.Context, nodeID string) error {
+	m.DisableAutoMergeCallCount++
 	if err := m.err("DisableAutoMerge"); err != nil {
 		return err
 	}
