@@ -27,6 +27,7 @@ jobs:
       contents: write  # required for GraphQL enablePullRequestAutoMerge / disablePullRequestAutoMerge
       issues: write
       pull-requests: write
+      checks: write     # required for /retest to re-run failed check runs
     concurrency:
       group: stern-comment-${{ github.event.issue.number }}
       cancel-in-progress: false

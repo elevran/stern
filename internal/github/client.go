@@ -67,6 +67,12 @@ type UsersClient interface {
 	RemoveReviewers(ctx context.Context, owner, repo string, number int, users []string) error
 }
 
+// ChecksClient covers check run listing and re-run operations.
+type ChecksClient interface {
+	ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error)
+	RerunCheckRun(ctx context.Context, owner, repo string, id int64) error
+}
+
 // Client is the full composed interface used by production code.
 type Client interface {
 	LabelsClient
@@ -77,6 +83,7 @@ type Client interface {
 	IssueStateClient
 	MilestoneClient
 	UsersClient
+	ChecksClient
 }
 
 type realClient struct {
@@ -333,6 +340,43 @@ func (c *realClient) ClearMilestone(ctx context.Context, owner, repo string, num
 	return err
 }
 
+// ListFailedCheckRuns lists check runs on the given ref whose conclusion
+// indicates a failure: "failure", "timed_out", "cancelled", or
+// "action_required". Skipped and successful runs are excluded.
+func (c *realClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	var failed []CheckRun
+	opts := &gh.ListCheckRunsOptions{
+		ListOptions: gh.ListOptions{PerPage: 100},
+	}
+	for {
+		results, resp, err := c.ghc.Checks.ListCheckRunsForRef(ctx, owner, repo, sha, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, run := range results.CheckRuns {
+			switch run.GetConclusion() {
+			case "failure", "timed_out", "cancelled", "action_required":
+				failed = append(failed, CheckRun{
+					ID:         run.GetID(),
+					Name:       run.GetName(),
+					Conclusion: run.GetConclusion(),
+				})
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return failed, nil
+}
+
+// RerunCheckRun triggers GitHub to re-run a single check run.
+func (c *realClient) RerunCheckRun(ctx context.Context, owner, repo string, id int64) error {
+	_, err := c.ghc.Checks.ReRequestCheckRun(ctx, owner, repo, id)
+	return err
+}
+
 // dryRunClient wraps a Client and logs mutating calls without executing them.
 type dryRunClient struct {
 	inner  Client
@@ -365,6 +409,9 @@ func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, re
 }
 func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
 	return c.inner.ListMilestones(ctx, owner, repo)
+}
+func (c *dryRunClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	return c.inner.ListFailedCheckRuns(ctx, owner, repo, sha)
 }
 
 // Mutating methods: log and no-op.
@@ -434,5 +481,9 @@ func (c *dryRunClient) RequestReviewers(_ context.Context, owner, repo string, n
 }
 func (c *dryRunClient) RemoveReviewers(_ context.Context, owner, repo string, number int, users []string) error {
 	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RemoveReviewers")
+	return nil
+}
+func (c *dryRunClient) RerunCheckRun(_ context.Context, owner, repo string, id int64) error {
+	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "id": id}).Info("[dry-run] RerunCheckRun")
 	return nil
 }
