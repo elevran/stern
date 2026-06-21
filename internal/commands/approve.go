@@ -69,6 +69,9 @@ func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []s
 // submitBotReview creates an APPROVE review from the bot if the bot has not
 // already approved. Review errors are non-fatal and logged.
 func (h *ApproveHandler) submitBotReview(ctx context.Context, sc *event.Context) {
+	if h.opts.BotLogin == "" {
+		return
+	}
 	reviews, err := h.ghc.ListPullRequestReviews(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {
 		logrus.WithError(err).Warn("approve: list reviews failed")
@@ -85,6 +88,9 @@ func (h *ApproveHandler) submitBotReview(ctx context.Context, sc *event.Context)
 
 // dismissBotReview dismisses the bot's own APPROVED review if present.
 func (h *ApproveHandler) dismissBotReview(ctx context.Context, sc *event.Context, msg string) {
+	if h.opts.BotLogin == "" {
+		return
+	}
 	reviews, err := h.ghc.ListPullRequestReviews(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {
 		logrus.WithError(err).Warn("approve: list reviews failed")
