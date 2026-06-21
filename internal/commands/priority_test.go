@@ -7,6 +7,8 @@ import (
 
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func priorityOpts() *config.Options {
@@ -22,12 +24,9 @@ func TestPriority_AddsLabel(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
-	if !ghc.IssueLabels[1]["priority/P0"] {
-		t.Error("expected priority/P0 label to be added")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /priority, got %v", ghc.Reactions)
-	}
+	assert.True(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 label to be added")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestPriority_MutuallyExclusive(t *testing.T) {
@@ -39,12 +38,8 @@ func TestPriority_MutuallyExclusive(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P1", reg, ghc, priorityOpts())
 
-	if ghc.IssueLabels[1]["priority/P0"] {
-		t.Error("expected existing priority/P0 label to be removed (mutual exclusion)")
-	}
-	if !ghc.IssueLabels[1]["priority/P1"] {
-		t.Error("expected priority/P1 label to be added")
-	}
+	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected existing priority/P0 label to be removed (mutual exclusion)")
+	assert.True(t, ghc.IssueLabels[1]["priority/P1"], "expected priority/P1 label to be added")
 }
 
 func TestPriority_RemovesAllPriorityLabels(t *testing.T) {
@@ -60,19 +55,11 @@ func TestPriority_RemovesAllPriorityLabels(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P2", reg, ghc, priorityOpts())
 
-	if ghc.IssueLabels[1]["priority/P0"] {
-		t.Error("expected priority/P0 to be removed")
-	}
-	if ghc.IssueLabels[1]["priority/P1"] {
-		t.Error("expected priority/P1 to be removed")
-	}
-	if !ghc.IssueLabels[1]["priority/P2"] {
-		t.Error("expected priority/P2 to be added")
-	}
+	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 to be removed")
+	assert.False(t, ghc.IssueLabels[1]["priority/P1"], "expected priority/P1 to be removed")
+	assert.True(t, ghc.IssueLabels[1]["priority/P2"], "expected priority/P2 to be added")
 	// Non-priority labels must be untouched.
-	if !ghc.IssueLabels[1]["area/api"] {
-		t.Error("expected non-priority label area/api to remain untouched")
-	}
+	assert.True(t, ghc.IssueLabels[1]["area/api"], "expected non-priority label area/api to remain untouched")
 }
 
 func TestPriority_Cancel_RemovesAll(t *testing.T) {
@@ -86,15 +73,10 @@ func TestPriority_Cancel_RemovesAll(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority cancel", reg, ghc, priorityOpts())
 
-	if ghc.IssueLabels[1]["priority/P0"] {
-		t.Error("expected priority/P0 removed on cancel")
-	}
-	if ghc.IssueLabels[1]["priority/P1"] {
-		t.Error("expected priority/P1 removed on cancel")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /priority cancel, got %v", ghc.Reactions)
-	}
+	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 removed on cancel")
+	assert.False(t, ghc.IssueLabels[1]["priority/P1"], "expected priority/P1 removed on cancel")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestPriority_NoArg_RemovesAll(t *testing.T) {
@@ -105,9 +87,7 @@ func TestPriority_NoArg_RemovesAll(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority", reg, ghc, priorityOpts())
 
-	if ghc.IssueLabels[1]["priority/P0"] {
-		t.Error("expected priority/P0 removed on /priority with no arg")
-	}
+	assert.False(t, ghc.IssueLabels[1]["priority/P0"], "expected priority/P0 removed on /priority with no arg")
 }
 
 func TestPriority_InvalidValue(t *testing.T) {
@@ -115,12 +95,9 @@ func TestPriority_InvalidValue(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P9", reg, ghc, priorityOpts())
 
-	if len(ghc.IssueLabels[1]) > 0 {
-		t.Errorf("expected no labels added for invalid priority, got %v", ghc.IssueLabels[1])
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for invalid priority, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.IssueLabels[1], "expected no labels added for invalid priority")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestPriority_NotOnPR(t *testing.T) {
@@ -130,9 +107,8 @@ func TestPriority_NotOnPR(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 for /priority on non-PR, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 for /priority on non-PR")
 }
 
 func TestPriority_HandleError_SuppressesPost(t *testing.T) {
@@ -142,11 +118,8 @@ func TestPriority_HandleError_SuppressesPost(t *testing.T) {
 	reg := commands.Registry{"priority": commands.NewPriorityHandler}
 	commands.Dispatch(context.Background(), sc, "/priority P0", reg, ghc, priorityOpts())
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

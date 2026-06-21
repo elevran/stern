@@ -9,6 +9,8 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func assignReg() commands.Registry {
@@ -29,15 +31,10 @@ func TestAssign_SelfAssign(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 1 {
-		t.Fatalf("expected 1 AddAssignees call, got %d", len(ghc.AssigneesAdded))
-	}
-	if got := ghc.AssigneesAdded[0].Users; len(got) != 1 || got[0] != "alice" {
-		t.Errorf("expected AddAssignees([alice]), got %v", got)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction, got %v", ghc.Reactions)
-	}
+	require.Len(t, ghc.AssigneesAdded, 1)
+	assert.Equal(t, []string{"alice"}, ghc.AssigneesAdded[0].Users)
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestAssign_SelfAssign_NotOrgMember_Denied(t *testing.T) {
@@ -47,12 +44,9 @@ func TestAssign_SelfAssign_NotOrgMember_Denied(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 0 {
-		t.Errorf("expected AddAssignees NOT called for non-org-member, got %d", len(ghc.AssigneesAdded))
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AssigneesAdded, "expected AddAssignees NOT called for non-org-member")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestAssign_OtherUser_RequiresWriteAccess(t *testing.T) {
@@ -62,12 +56,9 @@ func TestAssign_OtherUser_RequiresWriteAccess(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign @carol", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 0 {
-		t.Errorf("expected AddAssignees NOT called for non-writer, got %d", len(ghc.AssigneesAdded))
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AssigneesAdded, "expected AddAssignees NOT called for non-writer")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestAssign_OtherUser_WithWriteAccess(t *testing.T) {
@@ -77,12 +68,8 @@ func TestAssign_OtherUser_WithWriteAccess(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign @carol", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 1 {
-		t.Fatalf("expected 1 AddAssignees call, got %d", len(ghc.AssigneesAdded))
-	}
-	if got := ghc.AssigneesAdded[0].Users; len(got) != 1 || got[0] != "carol" {
-		t.Errorf("expected AddAssignees([carol]), got %v", got)
-	}
+	require.Len(t, ghc.AssigneesAdded, 1)
+	assert.Equal(t, []string{"carol"}, ghc.AssigneesAdded[0].Users)
 }
 
 func TestAssign_MultiUser(t *testing.T) {
@@ -92,13 +79,8 @@ func TestAssign_MultiUser(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign @carol @dan", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 1 {
-		t.Fatalf("expected 1 AddAssignees call, got %d", len(ghc.AssigneesAdded))
-	}
-	got := ghc.AssigneesAdded[0].Users
-	if len(got) != 2 || got[0] != "carol" || got[1] != "dan" {
-		t.Errorf("expected [carol dan], got %v", got)
-	}
+	require.Len(t, ghc.AssigneesAdded, 1)
+	assert.Equal(t, []string{"carol", "dan"}, ghc.AssigneesAdded[0].Users)
 }
 
 func TestAssign_StripsAtAndDeduplicates(t *testing.T) {
@@ -108,10 +90,7 @@ func TestAssign_StripsAtAndDeduplicates(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign @carol @CAROL @dan", assignReg(), ghc, assignOpts())
 
-	got := ghc.AssigneesAdded[0].Users
-	if len(got) != 2 || got[0] != "carol" || got[1] != "dan" {
-		t.Errorf("expected [carol dan] after dedupe+lowercase, got %v", got)
-	}
+	assert.Equal(t, []string{"carol", "dan"}, ghc.AssigneesAdded[0].Users)
 }
 
 func TestUnassign_Self(t *testing.T) {
@@ -122,12 +101,8 @@ func TestUnassign_Self(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/unassign", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesRemoved) != 1 {
-		t.Fatalf("expected 1 RemoveAssignees call, got %d", len(ghc.AssigneesRemoved))
-	}
-	if got := ghc.AssigneesRemoved[0].Users; len(got) != 1 || got[0] != "alice" {
-		t.Errorf("expected RemoveAssignees([alice]), got %v", got)
-	}
+	require.Len(t, ghc.AssigneesRemoved, 1)
+	assert.Equal(t, []string{"alice"}, ghc.AssigneesRemoved[0].Users)
 }
 
 func TestUnassign_Other(t *testing.T) {
@@ -137,12 +112,8 @@ func TestUnassign_Other(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/unassign @carol", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesRemoved) != 1 {
-		t.Fatalf("expected 1 RemoveAssignees call, got %d", len(ghc.AssigneesRemoved))
-	}
-	if got := ghc.AssigneesRemoved[0].Users; len(got) != 1 || got[0] != "carol" {
-		t.Errorf("expected RemoveAssignees([carol]), got %v", got)
-	}
+	require.Len(t, ghc.AssigneesRemoved, 1)
+	assert.Equal(t, []string{"carol"}, ghc.AssigneesRemoved[0].Users)
 }
 
 func TestAssign_NotOnPR(t *testing.T) {
@@ -158,12 +129,9 @@ func TestAssign_NotOnPR(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AssigneesAdded) != 0 {
-		t.Errorf("expected AddAssignees NOT called when not on a PR")
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AssigneesAdded, "expected AddAssignees NOT called when not on a PR")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
 
 func TestAssign_HandleError_SuppressesPost(t *testing.T) {
@@ -174,11 +142,8 @@ func TestAssign_HandleError_SuppressesPost(t *testing.T) {
 
 	commands.Dispatch(context.Background(), sc, "/assign", assignReg(), ghc, assignOpts())
 
-	if len(ghc.AutoMergeEnabled) > 0 || len(ghc.AutoMergeDisabled) > 0 {
-		t.Errorf("expected Post NOT to run when Handle errors, got enabled=%v disabled=%v",
-			ghc.AutoMergeEnabled, ghc.AutoMergeDisabled)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
+	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction on internal error")
 }

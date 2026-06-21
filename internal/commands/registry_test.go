@@ -8,6 +8,8 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newSternContext() *event.Context {
@@ -28,15 +30,9 @@ func TestDispatch_Ping(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/ping", reg, ghc, opts)
 
-	if len(ghc.Reactions) == 0 {
-		t.Fatal("expected +1 reaction from /ping")
-	}
-	if ghc.Reactions[0].Content != "+1" {
-		t.Errorf("reaction = %q, want +1", ghc.Reactions[0].Content)
-	}
-	if ghc.Reactions[0].CommentID != 123 {
-		t.Errorf("reaction on comment %d, want 123", ghc.Reactions[0].CommentID)
-	}
+	require.NotEmpty(t, ghc.Reactions, "expected +1 reaction from /ping")
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
+	assert.Equal(t, int64(123), ghc.Reactions[0].CommentID)
 }
 
 func TestDispatch_UnknownCommand(t *testing.T) {
@@ -47,12 +43,8 @@ func TestDispatch_UnknownCommand(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/hello there", reg, ghc, opts)
 
-	if len(ghc.Reactions) != 0 {
-		t.Errorf("expected no reaction for unknown command, got %d", len(ghc.Reactions))
-	}
-	if len(ghc.Comments) != 0 {
-		t.Errorf("expected no comment for unknown command, got %d", len(ghc.Comments))
-	}
+	assert.Empty(t, ghc.Reactions, "expected no reaction for unknown command")
+	assert.Empty(t, ghc.Comments, "expected no comment for unknown command")
 }
 
 func TestDispatch_MultipleCommands(t *testing.T) {
@@ -72,9 +64,7 @@ func TestDispatch_MultipleCommands(t *testing.T) {
 			pingCount++
 		}
 	}
-	if pingCount != 2 {
-		t.Errorf("expected 2 +1 reactions (one per /ping), got %d", pingCount)
-	}
+	assert.Equal(t, 2, pingCount, "expected 2 +1 reactions (one per /ping)")
 }
 
 func TestDispatch_NonCommandLinesIgnored(t *testing.T) {
@@ -86,9 +76,8 @@ func TestDispatch_NonCommandLinesIgnored(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, body, reg, ghc, opts)
 
-	if len(ghc.Reactions) != 1 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected exactly 1 +1 reaction, got %v", ghc.Reactions)
-	}
+	require.Len(t, ghc.Reactions, 1)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestDispatch_PermissionError(t *testing.T) {
@@ -101,12 +90,9 @@ func TestDispatch_PermissionError(t *testing.T) {
 	}
 	commands.Dispatch(context.Background(), sc, "/deny", reg, ghc, opts)
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for permission error, got %v", ghc.Reactions)
-	}
-	if len(ghc.Comments) == 0 {
-		t.Error("expected error comment for permission error")
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
+	assert.NotEmpty(t, ghc.Comments, "expected error comment for permission error")
 }
 
 func TestDispatch_InternalError(t *testing.T) {
@@ -119,12 +105,9 @@ func TestDispatch_InternalError(t *testing.T) {
 	}
 	commands.Dispatch(context.Background(), sc, "/fail", reg, ghc, opts)
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
-		t.Errorf("expected confused reaction for internal error, got %v", ghc.Reactions)
-	}
-	if len(ghc.Comments) == 0 {
-		t.Error("expected error comment for internal error")
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "confused", ghc.Reactions[0].Content)
+	assert.NotEmpty(t, ghc.Comments, "expected error comment for internal error")
 }
 
 func TestDispatch_PluginNotEnabled(t *testing.T) {
@@ -140,15 +123,9 @@ func TestDispatch_PluginNotEnabled(t *testing.T) {
 	}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
 
-	if called {
-		t.Error("handler should not be invoked when its plugin is not enabled")
-	}
-	if len(ghc.Reactions) != 0 {
-		t.Errorf("expected no reaction for disabled plugin, got %v", ghc.Reactions)
-	}
-	if len(ghc.Comments) != 0 {
-		t.Errorf("expected no comment for disabled plugin, got %v", ghc.Comments)
-	}
+	assert.False(t, called, "handler should not be invoked when its plugin is not enabled")
+	assert.Empty(t, ghc.Reactions, "expected no reaction for disabled plugin")
+	assert.Empty(t, ghc.Comments, "expected no comment for disabled plugin")
 }
 
 func TestDispatch_BuiltinIgnoresPlugins(t *testing.T) {
@@ -159,9 +136,8 @@ func TestDispatch_BuiltinIgnoresPlugins(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/ping", reg, ghc, opts)
 
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction from /ping with restricted plugins, got %v", ghc.Reactions)
-	}
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 // spyHandler records whether Handle was called.

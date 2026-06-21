@@ -8,6 +8,8 @@ import (
 	"github.com/elevran/stern/internal/config"
 	"github.com/elevran/stern/internal/event"
 	"github.com/elevran/stern/internal/github"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func closeOpts() *config.Options {
@@ -38,15 +40,10 @@ func TestClose_ClosesIssue(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/close", reg, ghc, closeOpts())
 
-	if len(ghc.IssueClosed) != 1 || ghc.IssueClosed[0] != 7 {
-		t.Errorf("expected CloseIssue(7), got %v", ghc.IssueClosed)
-	}
-	if len(ghc.IssueReopened) != 0 {
-		t.Errorf("expected ReopenIssue NOT called, got %v", ghc.IssueReopened)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /close, got %v", ghc.Reactions)
-	}
+	assert.Equal(t, []int{7}, ghc.IssueClosed, "expected CloseIssue(7)")
+	assert.Empty(t, ghc.IssueReopened, "expected ReopenIssue NOT called")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestReopen_ReopensIssue(t *testing.T) {
@@ -54,15 +51,10 @@ func TestReopen_ReopensIssue(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/reopen", reg, ghc, closeOpts())
 
-	if len(ghc.IssueReopened) != 1 || ghc.IssueReopened[0] != 7 {
-		t.Errorf("expected ReopenIssue(7), got %v", ghc.IssueReopened)
-	}
-	if len(ghc.IssueClosed) != 0 {
-		t.Errorf("expected CloseIssue NOT called, got %v", ghc.IssueClosed)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "+1" {
-		t.Errorf("expected +1 reaction after successful /reopen, got %v", ghc.Reactions)
-	}
+	assert.Equal(t, []int{7}, ghc.IssueReopened, "expected ReopenIssue(7)")
+	assert.Empty(t, ghc.IssueClosed, "expected CloseIssue NOT called")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content)
 }
 
 func TestClose_PermissionDeniedForNonWriter(t *testing.T) {
@@ -73,10 +65,7 @@ func TestClose_PermissionDeniedForNonWriter(t *testing.T) {
 	reg := commands.DefaultRegistry()
 	commands.Dispatch(context.Background(), sc, "/close", reg, ghc, closeOpts())
 
-	if len(ghc.IssueClosed) != 0 {
-		t.Errorf("expected CloseIssue NOT called for non-writer, got %v", ghc.IssueClosed)
-	}
-	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "-1" {
-		t.Errorf("expected -1 reaction for permission denied, got %v", ghc.Reactions)
-	}
+	assert.Empty(t, ghc.IssueClosed, "expected CloseIssue NOT called for non-writer")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content)
 }
