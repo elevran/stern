@@ -38,7 +38,7 @@ func HandlePREvent(ctx context.Context, ghc prClient, org, repo string, evt *eve
 	})
 
 	sender := evt.GetSender().GetLogin()
-	if strings.HasSuffix(sender, "[bot]") || sender == opts.BotLogin {
+	if event.IsBot(sender, opts.BotLogin) {
 		log.WithField("sender", sender).Info("pr-event: skipping bot-triggered event")
 		return nil
 	}
