@@ -177,10 +177,12 @@ func UncoveredFiles(
 //
 // Reads go through cachedGetFileContent so the ambient cache (installed by
 // cmd/stern) is consulted. The cache applies to /approve via UncoveredFiles
-// as well as /lgtm via LoadForPaths.
+// as well as /lgtm via LoadForPaths. effectiveCache(nil) is required here
+// — coveredByLogin has no cache parameter of its own, and cachedGetFileContent
+// does not resolve the ambient cache internally.
 func coveredByLogin(ctx context.Context, ghc github.ContentClient, owner, repo, ref, path, login string, aliases *Aliases) (bool, error) {
 	for _, dir := range ancestorDirs(path) {
-		data, err := cachedGetFileContent(ctx, ghc, nil, owner, repo, ownersFilePath(dir), ref)
+		data, err := cachedGetFileContent(ctx, ghc, effectiveCache(nil), owner, repo, ownersFilePath(dir), ref)
 		if err != nil {
 			if !github.IsNotFoundError(err) {
 				return false, fmt.Errorf("loading %s@%s: %w", ownersFilePath(dir), ref, err)

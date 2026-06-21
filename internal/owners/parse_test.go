@@ -331,29 +331,44 @@ func TestLoadForPaths_AliasesLoadErrorFailsClosed(t *testing.T) {
 // consults the ambient cache (when set), not just the live API. This
 // guards against a future refactor that bypasses cachedGetFileContent
 // from the /approve path.
+//
+// The fixture is deliberately built so the test fails with a clear signal
+// when the cache is bypassed: the OWNERS content is left in place and a
+// non-404 error is injected for any further live-API call. If the second
+// UncoveredFiles call succeeds, the cache MUST have been consulted — any
+// live-API call would surface the injected error. The previous version of
+// this test passed for the wrong reason (deleting the OWNERS file caused
+// a 404 → walk-up to root → no OWNERS → "open directory" semantics
+// returned covered regardless of caching).
 func TestUncoveredFiles_RespectsAmbientCache(t *testing.T) {
 	ghc := github.NewMockClient()
-	// Pre-populate dir/OWNERS so coveredByLogin has something to fetch.
+	cc := &countingClient{MockClient: ghc}
 	ghc.FileContent["OWNERS_ALIASES@sha"] = []byte("aliases: {}\n")
 	ghc.FileContent["dir/OWNERS@sha"] = []byte("approvers:\n  - alice\n")
 
-	// Pre-warm a cache with the same content.
+	// Pre-warm the ambient cache via the public API. This must populate
+	// both OWNERS_ALIASES and dir/OWNERS for the second call to succeed.
 	cache, err := owners.LoadCacheFile("")
 	require.NoError(t, err)
 	owners.SetAmbientCache(cache)
 	defer owners.SetAmbientCache(nil) // restore for other tests
 
-	// First call populates the cache via cachedGetFileContent.
-	_, err = owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+	_, err = owners.UncoveredFiles(context.Background(), cc, "o", "r", "sha", "alice",
 		[]string{"dir/f.go"})
 	require.NoError(t, err)
+	// Cold cache: OWNERS_ALIASES + dir/OWNERS = 2 API calls.
+	assert.Equal(t, 2, cc.calls, "expected two cold API calls to warm the cache")
 
-	// Now wipe the mock so the API would 404 on any further call.
+	// Sabotage the mock: any further live-API call must fail with a non-404
+	// error. The test passes only if coveredByLogin consults the cache
+	// instead of hitting the API.
 	delete(ghc.FileContent, "dir/OWNERS@sha")
+	delete(ghc.FileContent, "OWNERS_ALIASES@sha")
+	ghc.Errors["GetFileContent"] = errors.New("API unavailable")
 
-	// Second call must hit the cache and still find alice as approver.
-	uncovered, err := owners.UncoveredFiles(context.Background(), ghc, "o", "r", "sha", "alice",
+	uncovered, err := owners.UncoveredFiles(context.Background(), cc, "o", "r", "sha", "alice",
 		[]string{"dir/f.go"})
-	require.NoError(t, err)
-	assert.Empty(t, uncovered, "coveredByLogin must consult the ambient cache, not just the live API")
+	require.NoError(t, err, "coveredByLogin must consult the cache; a live-API call would surface the injected error")
+	assert.Empty(t, uncovered, "alice should be covered from the cached OWNERS file")
+	assert.Equal(t, 2, cc.calls, "expected zero additional API calls when cache is warm")
 }
