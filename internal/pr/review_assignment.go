@@ -42,7 +42,7 @@ func HandlePREventReviewAssignment(ctx context.Context, ghc prClient, org, repo 
 		return nil
 	}
 
-	resolved, err := owners.LoadForPaths(ctx, ghc, org, repo, p.HeadSHA, paths)
+	resolved, err := owners.LoadForPaths(ctx, ghc, nil, org, repo, p.HeadSHA, paths)
 	if err != nil {
 		return fmt.Errorf("loading OWNERS for paths: %w", err)
 	}
