@@ -1,5 +1,12 @@
 package config
 
+// Cherry-pick command constants.
+const (
+	CherryPickCommandCherryPick = "cherry-pick"
+	CherryPickCommandCherrypick = "cherrypick"
+	CherryPickCommandCP         = "cp"
+)
+
 // CherryPickOptions configures the /cherry-pick slash command handler.
 type CherryPickOptions struct {
 	AllowedBranchPattern string `yaml:"allowed_branch_pattern"`
@@ -8,6 +15,6 @@ type CherryPickOptions struct {
 
 func (o *CherryPickOptions) applyDefaults() {
 	if o.Command == "" {
-		o.Command = "cherry-pick"
+		o.Command = CherryPickCommandCherryPick
 	}
 }

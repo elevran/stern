@@ -2,6 +2,19 @@ package config
 
 import "fmt"
 
+// Merge method constants.
+const (
+	MergeMethodSquash = "squash"
+	MergeMethodMerge  = "merge"
+	MergeMethodRebase = "rebase"
+)
+
+// Merge strategy constants.
+const (
+	MergeStrategyNative = "native"
+	MergeStrategyBot    = "bot"
+)
+
 // MergeOptions configures merge eligibility and auto-merge behavior.
 type MergeOptions struct {
 	Strategy       string   `yaml:"strategy"` // native | bot
@@ -11,17 +24,17 @@ type MergeOptions struct {
 
 func (o *MergeOptions) applyDefaults() {
 	if o.Strategy == "" {
-		o.Strategy = "native"
+		o.Strategy = MergeStrategyNative
 	}
 	if o.Method == "" {
-		o.Method = "squash"
+		o.Method = MergeMethodSquash
 	}
 }
 
 func (o *MergeOptions) validate() []ValidationIssue {
 	var issues []ValidationIssue
 	switch o.Method {
-	case "squash", "merge", "rebase", "":
+	case MergeMethodSquash, MergeMethodMerge, MergeMethodRebase, "":
 	default:
 		issues = append(issues, ValidationIssue{
 			Level:   "ERROR",
@@ -30,7 +43,7 @@ func (o *MergeOptions) validate() []ValidationIssue {
 		})
 	}
 	switch o.Strategy {
-	case "native", "bot", "":
+	case MergeStrategyNative, MergeStrategyBot, "":
 	default:
 		issues = append(issues, ValidationIssue{
 			Level:   "ERROR",
@@ -38,7 +51,7 @@ func (o *MergeOptions) validate() []ValidationIssue {
 			Message: fmt.Sprintf("invalid value %q (must be native or bot)", o.Strategy),
 		})
 	}
-	if o.Strategy == "native" && len(o.BlockingLabels) == 0 {
+	if o.Strategy == MergeStrategyNative && len(o.BlockingLabels) == 0 {
 		issues = append(issues, ValidationIssue{
 			Level:   "WARN",
 			Field:   "merge.blocking_labels",

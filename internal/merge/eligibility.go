@@ -64,7 +64,7 @@ func CheckAndApplyAutoMerge(ctx context.Context, ghc github.PullRequestsClient, 
 	if result.Ready {
 		method := opts.Merge.Method
 		if method == "" {
-			method = "squash"
+			method = config.MergeMethodSquash
 		}
 		if err := ghc.EnableAutoMerge(ctx, nodeID, method); err != nil {
 			if isAutoMergeUnavailable(err) {

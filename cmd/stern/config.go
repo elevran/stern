@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/config"
+)
+
+var (
+	errorColor = color.New(color.FgRed)
+	warnColor  = color.New(color.FgYellow)
 )
 
 func newConfigCmd() *cobra.Command {
@@ -90,27 +95,37 @@ func newConfigInitCmd() *cobra.Command {
 
 func newConfigCheckCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:          "check",
-		Short:        "Validate stern.yaml and report all issues",
-		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		Use:           "check",
+		Short:         "Validate stern.yaml and report all issues",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			out := cmd.OutOrStdout()
 			issues := globalOpts.Validate()
 			if len(issues) == 0 {
-				fmt.Printf("%s — No issues found\n", configPath)
+				_, _ = fmt.Fprintf(out, "%s — No issues found\n", configPath)
 				return nil
 			}
-			fmt.Printf("%s — %d issue(s) found\n\n", configPath, len(issues))
+			_, _ = fmt.Fprintf(out, "%s — %d issue(s) found\n\n", configPath, len(issues))
 			hasError := false
 			for _, e := range issues {
-				s := e.Error()
-				fmt.Printf("  %s\n", s)
-				if strings.HasPrefix(s, "ERROR") {
+				switch e.Level {
+				case "ERROR":
+					_, _ = errorColor.Fprintf(out, "  ERROR  %s: %s\n", e.Field, e.Message)
 					hasError = true
+				case "WARN":
+					_, _ = warnColor.Fprintf(out, "  WARN   %s: %s\n", e.Field, e.Message)
+				default:
+					_, _ = fmt.Fprintf(out, "  %s\n", e.Error())
 				}
 			}
-			fmt.Println()
+			_, _ = fmt.Fprintln(out)
 			if hasError {
-				return fmt.Errorf("validation failed")
+				// Use os.Exit(1) rather than returning an error so Cobra does
+				// not print its own "Error: ..." line after our validation output
+				// (#18). SilenceErrors also suppresses that line, but exiting
+				// directly avoids the RunE error path entirely.
+				os.Exit(1)
 			}
 			return nil
 		},
