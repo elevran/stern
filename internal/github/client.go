@@ -2,12 +2,12 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	gh "github.com/google/go-github/v72/github"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
@@ -69,7 +69,7 @@ type UsersClient interface {
 
 // ChecksClient covers check run listing and re-run operations.
 type ChecksClient interface {
-	ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error)
+	ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error)
 	RerunCheckRun(ctx context.Context, owner, repo string, id int64) error
 }
 
@@ -227,11 +227,30 @@ type graphqlRequest struct {
 	Variables map[string]any `json:"variables,omitempty"`
 }
 
+// graphqlError mirrors a single entry in the top-level GraphQL "errors" array.
+type graphqlError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"` // e.g. "FORBIDDEN", "NOT_FOUND"
+}
+
 // graphqlResponse holds top-level GraphQL errors (mutations return null data on failure).
 type graphqlResponse struct {
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
+	Data   json.RawMessage `json:"data"`
+	Errors []graphqlError  `json:"errors"`
+}
+
+// GraphQLError is the typed error returned from graphql() when the GraphQL
+// response contains an error entry. Type is the GitHub error type
+// (e.g. "FORBIDDEN", "NOT_FOUND"); callers can match on it with errors.As.
+type GraphQLError struct {
+	Message string
+	Type    string
+}
+
+// Error implements the error interface. Message is intentionally used so the
+// formatted string matches the previous "%s" behavior.
+func (e *GraphQLError) Error() string {
+	return e.Message
 }
 
 func (c *realClient) graphql(ctx context.Context, query string, vars map[string]any) error {
@@ -244,7 +263,8 @@ func (c *realClient) graphql(ctx context.Context, query string, vars map[string]
 		return err
 	}
 	if len(resp.Errors) > 0 {
-		return fmt.Errorf("graphql: %s", resp.Errors[0].Message)
+		first := resp.Errors[0]
+		return &GraphQLError{Message: first.Message, Type: first.Type}
 	}
 	return nil
 }
@@ -340,11 +360,10 @@ func (c *realClient) ClearMilestone(ctx context.Context, owner, repo string, num
 	return err
 }
 
-// ListFailedCheckRuns lists check runs on the given ref whose conclusion
-// indicates a failure: "failure", "timed_out", "cancelled", or
-// "action_required". Skipped and successful runs are excluded.
-func (c *realClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
-	var failed []CheckRun
+// ListCheckRuns lists all check runs on the given ref, paginating through
+// every page. Callers apply their own conclusion filter (e.g. only failed).
+func (c *realClient) ListCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	var runs []CheckRun
 	opts := &gh.ListCheckRunsOptions{
 		ListOptions: gh.ListOptions{PerPage: 100},
 	}
@@ -354,136 +373,22 @@ func (c *realClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha s
 			return nil, err
 		}
 		for _, run := range results.CheckRuns {
-			switch run.GetConclusion() {
-			case "failure", "timed_out", "cancelled", "action_required":
-				failed = append(failed, CheckRun{
-					ID:         run.GetID(),
-					Name:       run.GetName(),
-					Conclusion: run.GetConclusion(),
-				})
-			}
+			runs = append(runs, CheckRun{
+				ID:         run.GetID(),
+				Name:       run.GetName(),
+				Conclusion: run.GetConclusion(),
+			})
 		}
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
-	return failed, nil
+	return runs, nil
 }
 
 // RerunCheckRun triggers GitHub to re-run a single check run.
 func (c *realClient) RerunCheckRun(ctx context.Context, owner, repo string, id int64) error {
 	_, err := c.ghc.Checks.ReRequestCheckRun(ctx, owner, repo, id)
 	return err
-}
-
-// dryRunClient wraps a Client and logs mutating calls without executing them.
-type dryRunClient struct {
-	inner  Client
-	logger *logrus.Logger
-}
-
-// NewDryRun wraps a Client so all mutating calls are logged instead of executed.
-func NewDryRun(inner Client, logger *logrus.Logger) Client {
-	return &dryRunClient{inner: inner, logger: logger}
-}
-
-// Read-through: these methods pass to inner unchanged.
-func (c *dryRunClient) ListRepoLabels(ctx context.Context, owner, repo string) ([]Label, error) {
-	return c.inner.ListRepoLabels(ctx, owner, repo)
-}
-func (c *dryRunClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error) {
-	return c.inner.GetPullRequest(ctx, owner, repo, number)
-}
-func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]string, error) {
-	return c.inner.ListPullRequestFiles(ctx, owner, repo, number)
-}
-func (c *dryRunClient) IsOrgMember(ctx context.Context, org, user string) (bool, error) {
-	return c.inner.IsOrgMember(ctx, org, user)
-}
-func (c *dryRunClient) HasWriteAccess(ctx context.Context, owner, repo, user string) (bool, error) {
-	return c.inner.HasWriteAccess(ctx, owner, repo, user)
-}
-func (c *dryRunClient) GetFileContent(ctx context.Context, owner, repo, path, ref string) ([]byte, error) {
-	return c.inner.GetFileContent(ctx, owner, repo, path, ref)
-}
-func (c *dryRunClient) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
-	return c.inner.ListMilestones(ctx, owner, repo)
-}
-func (c *dryRunClient) ListFailedCheckRuns(ctx context.Context, owner, repo, sha string) ([]CheckRun, error) {
-	return c.inner.ListFailedCheckRuns(ctx, owner, repo, sha)
-}
-
-// Mutating methods: log and no-op.
-func (c *dryRunClient) CreateLabel(ctx context.Context, owner, repo string, label Label) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": label.Name}).Info("[dry-run] CreateLabel")
-	return nil
-}
-func (c *dryRunClient) UpdateLabel(ctx context.Context, owner, repo, name string, label Label) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": name}).Info("[dry-run] UpdateLabel")
-	return nil
-}
-func (c *dryRunClient) DeleteLabel(ctx context.Context, owner, repo, name string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "name": name}).Info("[dry-run] DeleteLabel")
-	return nil
-}
-func (c *dryRunClient) AddLabels(ctx context.Context, owner, repo string, number int, labels []string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "labels": labels}).Info("[dry-run] AddLabels")
-	return nil
-}
-func (c *dryRunClient) RemoveLabel(ctx context.Context, owner, repo string, number int, label string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "label": label}).Info("[dry-run] RemoveLabel")
-	return nil
-}
-func (c *dryRunClient) CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "commentID": commentID, "content": content}).Info("[dry-run] CreateCommentReaction")
-	return nil
-}
-func (c *dryRunClient) CreateIssueComment(ctx context.Context, owner, repo string, number int, body string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] CreateIssueComment")
-	return nil
-}
-func (c *dryRunClient) EnableAutoMerge(_ context.Context, nodeID string, method string) error {
-	c.logger.WithFields(logrus.Fields{"nodeID": nodeID, "method": method}).Info("[dry-run] EnableAutoMerge")
-	return nil
-}
-func (c *dryRunClient) DisableAutoMerge(_ context.Context, nodeID string) error {
-	c.logger.WithFields(logrus.Fields{"nodeID": nodeID}).Info("[dry-run] DisableAutoMerge")
-	return nil
-}
-func (c *dryRunClient) CloseIssue(_ context.Context, owner, repo string, number int) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] CloseIssue")
-	return nil
-}
-func (c *dryRunClient) ReopenIssue(_ context.Context, owner, repo string, number int) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ReopenIssue")
-	return nil
-}
-func (c *dryRunClient) SetMilestone(_ context.Context, owner, repo string, number int, milestoneID int) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "milestoneID": milestoneID}).Info("[dry-run] SetMilestone")
-	return nil
-}
-func (c *dryRunClient) ClearMilestone(_ context.Context, owner, repo string, number int) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number}).Info("[dry-run] ClearMilestone")
-	return nil
-}
-func (c *dryRunClient) AddAssignees(_ context.Context, owner, repo string, number int, users []string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] AddAssignees")
-	return nil
-}
-func (c *dryRunClient) RemoveAssignees(_ context.Context, owner, repo string, number int, users []string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RemoveAssignees")
-	return nil
-}
-func (c *dryRunClient) RequestReviewers(_ context.Context, owner, repo string, number int, users []string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RequestReviewers")
-	return nil
-}
-func (c *dryRunClient) RemoveReviewers(_ context.Context, owner, repo string, number int, users []string) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "number": number, "users": users}).Info("[dry-run] RemoveReviewers")
-	return nil
-}
-func (c *dryRunClient) RerunCheckRun(_ context.Context, owner, repo string, id int64) error {
-	c.logger.WithFields(logrus.Fields{"owner": owner, "repo": repo, "id": id}).Info("[dry-run] RerunCheckRun")
-	return nil
 }

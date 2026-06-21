@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -91,7 +92,7 @@ func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
 	srv, _ := captureGraphQL(t, map[string]any{
 		"data": nil,
 		"errors": []map[string]any{
-			{"message": "Pull request Pull request is in clean status"},
+			{"message": "Pull request Pull request is in clean status", "type": "UNPROCESSABLE"},
 		},
 	})
 
@@ -102,5 +103,116 @@ func TestEnableAutoMerge_GraphQLError_Propagated(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "clean status") {
 		t.Errorf("error = %v, want it to contain 'clean status'", err)
+	}
+	var gqlErr *GraphQLError
+	if !errors.As(err, &gqlErr) {
+		t.Fatalf("expected error to be a *GraphQLError, got %T: %v", err, err)
+	}
+	if gqlErr.Type != "UNPROCESSABLE" {
+		t.Errorf("expected GraphQLError.Type=UNPROCESSABLE, got %q", gqlErr.Type)
+	}
+	if gqlErr.Message != "Pull request Pull request is in clean status" {
+		t.Errorf("unexpected GraphQLError.Message: %q", gqlErr.Message)
+	}
+}
+
+// paginatedLabelsServer returns labels in two pages: page 1 returns
+// `page1Labels` with a Link header pointing to page 2; page 2 returns
+// `page2Labels` with no Link header (terminal page).
+func paginatedLabelsServer(t *testing.T, page1Labels, page2Labels []map[string]any) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/repos/o/r/labels" {
+			http.NotFound(w, r)
+			return
+		}
+		page := r.URL.Query().Get("page")
+		w.Header().Set("Content-Type", "application/json")
+		switch page {
+		case "", "1":
+			link := `<http://` + r.Host + `/api/v3/repos/o/r/labels?page=2>; rel="next"`
+			w.Header().Set("Link", link)
+			_ = json.NewEncoder(w).Encode(page1Labels)
+		case "2":
+			_ = json.NewEncoder(w).Encode(page2Labels)
+		default:
+			t.Errorf("unexpected page request: %q", page)
+			http.Error(w, "unexpected page", http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestListRepoLabels_Pagination(t *testing.T) {
+	page1 := []map[string]any{
+		{"name": "bug", "color": "f00", "description": "something is broken"},
+		{"name": "feature", "color": "0f0", "description": "new feature"},
+	}
+	page2 := []map[string]any{
+		{"name": "wontfix", "color": "000", "description": "out of scope"},
+	}
+	srv := paginatedLabelsServer(t, page1, page2)
+
+	c := newTestClient(t, srv)
+	labels, err := c.ListRepoLabels(context.Background(), "o", "r")
+	if err != nil {
+		t.Fatalf("ListRepoLabels() error = %v", err)
+	}
+	if len(labels) != 3 {
+		t.Fatalf("expected 3 labels across two pages, got %d: %v", len(labels), labels)
+	}
+	names := make(map[string]bool)
+	for _, l := range labels {
+		names[l.Name] = true
+	}
+	for _, want := range []string{"bug", "feature", "wontfix"} {
+		if !names[want] {
+			t.Errorf("expected label %q in result, got %v", want, labels)
+		}
+	}
+}
+
+func TestListPullRequestFiles_Pagination(t *testing.T) {
+	page1 := []map[string]any{
+		{"filename": "main.go"},
+		{"filename": "cmd/run.go"},
+	}
+	page2 := []map[string]any{
+		{"filename": "internal/x/y.go"},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expected := "/api/v3/repos/o/r/pulls/1/files"
+		if r.URL.Path != expected {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		page := r.URL.Query().Get("page")
+		switch page {
+		case "", "1":
+			w.Header().Set("Link", `<http://`+r.Host+expected+`?page=2>; rel="next"`)
+			_ = json.NewEncoder(w).Encode(page1)
+		case "2":
+			_ = json.NewEncoder(w).Encode(page2)
+		default:
+			http.Error(w, "unexpected page", http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newTestClient(t, srv)
+	files, err := c.ListPullRequestFiles(context.Background(), "o", "r", 1)
+	if err != nil {
+		t.Fatalf("ListPullRequestFiles() error = %v", err)
+	}
+	if len(files) != 3 {
+		t.Fatalf("expected 3 files across two pages, got %d: %v", len(files), files)
+	}
+	want := map[string]bool{"main.go": true, "cmd/run.go": true, "internal/x/y.go": true}
+	for _, f := range files {
+		if !want[f] {
+			t.Errorf("unexpected file %q in result", f)
+		}
 	}
 }

@@ -39,10 +39,25 @@ func (h *RetestHandler) Pre(ctx context.Context, sc *event.Context, _ []string) 
 	return nil
 }
 
+// failedCheckConclusions are the conclusions that count as a failure for
+// the purpose of /retest. A check in any of these states is re-run.
+var failedCheckConclusions = map[string]bool{
+	"failure":         true,
+	"timed_out":       true,
+	"cancelled":       true,
+	"action_required": true,
+}
+
 func (h *RetestHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
-	failed, err := h.ghc.ListFailedCheckRuns(ctx, sc.Org, sc.Repo, sc.PR.HeadSHA)
+	allRuns, err := h.ghc.ListCheckRuns(ctx, sc.Org, sc.Repo, sc.PR.HeadSHA)
 	if err != nil {
 		return err
+	}
+	var failed []github.CheckRun
+	for _, run := range allRuns {
+		if failedCheckConclusions[run.Conclusion] {
+			failed = append(failed, run)
+		}
 	}
 	if len(failed) == 0 {
 		return h.ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber,
