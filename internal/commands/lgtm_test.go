@@ -104,7 +104,7 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "outsider"
 	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - alice\n  - bob\n")
-	ghc.PRFiles[1] = []github.CommitFile{{Filename: "README.md"}}
+	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
@@ -121,7 +121,7 @@ func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "anyone"
 	// No OWNERS files loaded in mock
-	ghc.PRFiles[1] = []github.CommitFile{{Filename: "README.md"}}
+	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": commands.NewLGTMHandler}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))

@@ -18,11 +18,6 @@ type PullRequest struct {
 	HeadSHA string
 }
 
-// CommitFile represents a file changed in a pull request.
-type CommitFile struct {
-	Filename string
-}
-
 // Label represents a GitHub repository label.
 type Label struct {
 	Name        string

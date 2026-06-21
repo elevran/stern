@@ -70,7 +70,7 @@ func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Conte
 	if err != nil {
 		return err
 	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, fileNames(files))
+	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
 	if err != nil {
 		return err
 	}

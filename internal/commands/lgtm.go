@@ -67,7 +67,7 @@ func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) er
 	if err != nil {
 		return err
 	}
-	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, fileNames(files))
+	resolved, err := owners.LoadForPaths(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.HeadSHA, files)
 	if err != nil {
 		return err
 	}
@@ -78,13 +78,4 @@ func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) er
 		return PermissionError("%s is not in the OWNERS reviewers list for this PR's changed files", sc.Author)
 	}
 	return nil
-}
-
-// fileNames extracts filenames from a list of commit files.
-func fileNames(files []github.CommitFile) []string {
-	names := make([]string, len(files))
-	for i, f := range files {
-		names[i] = f.Filename
-	}
-	return names
 }

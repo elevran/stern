@@ -23,7 +23,7 @@ type Client interface {
 
 	// Pull requests
 	GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error)
-	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error)
+	ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]string, error)
 
 	// Reactions and comments
 	CreateCommentReaction(ctx context.Context, owner, repo string, commentID int64, content string) error
@@ -108,8 +108,8 @@ func (c *realClient) GetPullRequest(ctx context.Context, owner, repo string, num
 	return PullRequestFromGH(pr), nil
 }
 
-func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error) {
-	var all []CommitFile
+func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]string, error) {
+	var all []string
 	opts := &gh.ListOptions{PerPage: 100}
 	for {
 		files, resp, err := c.ghc.PullRequests.ListFiles(ctx, owner, repo, number, opts)
@@ -117,7 +117,7 @@ func (c *realClient) ListPullRequestFiles(ctx context.Context, owner, repo strin
 			return nil, err
 		}
 		for _, f := range files {
-			all = append(all, CommitFile{Filename: f.GetFilename()})
+			all = append(all, f.GetFilename())
 		}
 		if resp.NextPage == 0 {
 			break
@@ -247,7 +247,7 @@ func (c *dryRunClient) ListRepoLabels(ctx context.Context, owner, repo string) (
 func (c *dryRunClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (PullRequest, error) {
 	return c.inner.GetPullRequest(ctx, owner, repo, number)
 }
-func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]CommitFile, error) {
+func (c *dryRunClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int) ([]string, error) {
 	return c.inner.ListPullRequestFiles(ctx, owner, repo, number)
 }
 func (c *dryRunClient) IsOrgMember(ctx context.Context, org, user string) (bool, error) {

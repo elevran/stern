@@ -10,7 +10,7 @@ type MockClient struct {
 	// Pre-loaded read state.
 	RepoLabels   map[string]Label     // label name -> label
 	PullRequests map[int]*PullRequest // PR number -> PR
-	PRFiles      map[int][]CommitFile // PR number -> files
+	PRFiles      map[int][]string     // PR number -> filenames
 	FileContent  map[string][]byte    // "path@ref" -> content
 	OrgMembers   map[string]bool      // "org/user" -> is member
 	WriteAccess  map[string]bool      // "owner/repo/user" -> has write
@@ -42,7 +42,7 @@ func NewMockClient() *MockClient {
 	return &MockClient{
 		RepoLabels:   make(map[string]Label),
 		PullRequests: make(map[int]*PullRequest),
-		PRFiles:      make(map[int][]CommitFile),
+		PRFiles:      make(map[int][]string),
 		FileContent:  make(map[string][]byte),
 		OrgMembers:   make(map[string]bool),
 		WriteAccess:  make(map[string]bool),
@@ -124,7 +124,7 @@ func (m *MockClient) GetPullRequest(_ context.Context, _, _ string, number int) 
 	return *pr, nil
 }
 
-func (m *MockClient) ListPullRequestFiles(_ context.Context, _, _ string, number int) ([]CommitFile, error) {
+func (m *MockClient) ListPullRequestFiles(_ context.Context, _, _ string, number int) ([]string, error) {
 	if err := m.err("ListPullRequestFiles"); err != nil {
 		return nil, err
 	}
