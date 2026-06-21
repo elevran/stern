@@ -118,7 +118,7 @@ func validateItemOverride(prefix string, o LifecycleItemOptions) []ValidationIss
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
 				Field:   check.name,
-				Message: "must be a positive integer",
+				Message: "must be 0 or a positive integer (0 means inherit the global default)",
 			})
 		}
 	}
