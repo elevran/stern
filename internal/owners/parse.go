@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/elevran/stern/internal/github"
@@ -54,6 +55,7 @@ func LoadForPaths(ctx context.Context, ghc github.ContentClient, owner, repo, re
 			}
 			var f File
 			if err := yaml.Unmarshal(data, &f); err != nil {
+				logrus.WithError(err).WithField("path", ownersPath).Warn("OWNERS file exists but could not be parsed; owners for this directory will be skipped")
 				continue
 			}
 			for _, a := range f.Approvers {
