@@ -16,7 +16,6 @@ type MockClient struct {
 	WriteAccess     map[string]bool       // "owner/repo/user" -> has write
 	Milestones      map[int]Milestone     // milestone number -> Milestone
 	FailedCheckRuns map[string][]CheckRun // "owner/repo/sha" -> failed check runs
-	Reviews         map[int][]Review      // PR number -> review records
 
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
@@ -37,9 +36,7 @@ type MockClient struct {
 	AssigneesRemoved   []UsersRecord
 	ReviewersRequested []UsersRecord
 	ReviewersRemoved   []UsersRecord
-	RerunCheckRuns   []int64        // check run IDs passed to RerunCheckRun
-	ReviewsPosted    []ReviewRecord
-	ReviewsDismissed []int64 // reviewIDs passed to DismissPullRequestReview
+	RerunCheckRuns     []int64 // check run IDs passed to RerunCheckRun
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -65,13 +62,6 @@ type UsersRecord struct {
 	Users  []string
 }
 
-type ReviewRecord struct {
-	Number int
-	Event  string
-	Body   string
-	ID     int64
-}
-
 func NewMockClient() *MockClient {
 	return &MockClient{
 		RepoLabels:      make(map[string]Label),
@@ -82,7 +72,6 @@ func NewMockClient() *MockClient {
 		WriteAccess:     make(map[string]bool),
 		Milestones:      make(map[int]Milestone),
 		FailedCheckRuns: make(map[string][]CheckRun),
-		Reviews:         make(map[int][]Review),
 		IssueLabels:     make(map[int]map[string]bool),
 		IssueMilestone:  make(map[int]int),
 		Assignees:       make(map[int][]string),
@@ -363,39 +352,5 @@ func (m *MockClient) RerunCheckRun(_ context.Context, _, _ string, id int64) err
 		return err
 	}
 	m.RerunCheckRuns = append(m.RerunCheckRuns, id)
-	return nil
-}
-
-func (m *MockClient) ListPullRequestReviews(_ context.Context, _, _ string, number int) ([]Review, error) {
-	if err := m.err("ListPullRequestReviews"); err != nil {
-		return nil, err
-	}
-	return m.Reviews[number], nil
-}
-
-func (m *MockClient) CreatePullRequestReview(_ context.Context, _, _ string, number int, event, body string) error {
-	if err := m.err("CreatePullRequestReview"); err != nil {
-		return err
-	}
-	id := int64(len(m.Reviews[number]) + 1)
-	review := Review{ID: id, State: event, Login: "bot"}
-	m.Reviews[number] = append(m.Reviews[number], review)
-	m.ReviewsPosted = append(m.ReviewsPosted, ReviewRecord{Number: number, Event: event, Body: body, ID: id})
-	return nil
-}
-
-func (m *MockClient) DismissPullRequestReview(_ context.Context, _, _ string, _ int, reviewID int64, _ string) error {
-	if err := m.err("DismissPullRequestReview"); err != nil {
-		return err
-	}
-	for prNum := range m.Reviews {
-		for i := range m.Reviews[prNum] {
-			if m.Reviews[prNum][i].ID == reviewID {
-				m.Reviews[prNum][i].State = "DISMISSED"
-				break
-			}
-		}
-	}
-	m.ReviewsDismissed = append(m.ReviewsDismissed, reviewID)
 	return nil
 }

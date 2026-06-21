@@ -7,7 +7,6 @@ import (
 
 	"github.com/elevran/stern/internal/commands"
 	"github.com/elevran/stern/internal/config"
-	"github.com/elevran/stern/internal/github"
 )
 
 func approveOpts(allowSelf bool) *config.Options {
@@ -127,76 +126,5 @@ func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 	}
 	if len(ghc.Reactions) == 0 || ghc.Reactions[0].Content != "confused" {
 		t.Errorf("expected confused reaction on internal error, got %v", ghc.Reactions)
-	}
-}
-
-func TestApprove_PostsReview(t *testing.T) {
-	sc, ghc := prContext("author")
-	sc.Author = "approver"
-	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
-	ghc.PRFiles[1] = []string{"main.go"}
-	opts := approveOpts(false)
-	opts.BotLogin = "stern-bot"
-
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
-
-	if len(ghc.ReviewsPosted) != 1 {
-		t.Fatalf("expected exactly one CreatePullRequestReview call, got %d", len(ghc.ReviewsPosted))
-	}
-	got := ghc.ReviewsPosted[0]
-	if got.Number != 1 || got.Event != "APPROVE" {
-		t.Errorf("unexpected review record: %+v", got)
-	}
-}
-
-func TestApprove_Idempotent_WhenBotReviewExists(t *testing.T) {
-	sc, ghc := prContext("author")
-	sc.Author = "approver"
-	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
-	ghc.PRFiles[1] = []string{"main.go"}
-	opts := approveOpts(false)
-	opts.BotLogin = "stern-bot"
-	ghc.Reviews[1] = []github.Review{{ID: 42, State: "APPROVED", Login: "stern-bot"}}
-
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
-
-	if len(ghc.ReviewsPosted) != 0 {
-		t.Errorf("expected NO CreatePullRequestReview call when bot review exists, got %v", ghc.ReviewsPosted)
-	}
-}
-
-func TestApprove_Cancel_DismissesReview(t *testing.T) {
-	sc, ghc := prContext("author")
-	sc.Author = "approver"
-	ghc.IssueLabels[1] = map[string]bool{"approved": true}
-	ghc.Reviews[1] = []github.Review{{ID: 99, State: "APPROVED", Login: "stern-bot"}}
-	opts := approveOpts(false)
-	opts.BotLogin = "stern-bot"
-
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
-	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, opts)
-
-	if len(ghc.ReviewsDismissed) != 1 || ghc.ReviewsDismissed[0] != 99 {
-		t.Errorf("expected DismissPullRequestReview called with id 99, got %v", ghc.ReviewsDismissed)
-	}
-	if got := ghc.Reviews[1][0].State; got != "DISMISSED" {
-		t.Errorf("expected review state DISMISSED, got %q", got)
-	}
-}
-
-func TestApprove_Cancel_NoReviewIsNoOp(t *testing.T) {
-	sc, ghc := prContext("author")
-	sc.Author = "approver"
-	ghc.IssueLabels[1] = map[string]bool{"approved": true}
-	opts := approveOpts(false)
-	opts.BotLogin = "stern-bot"
-
-	reg := commands.Registry{"approve": commands.NewApproveHandler}
-	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, opts)
-
-	if len(ghc.ReviewsDismissed) != 0 {
-		t.Errorf("expected NO DismissPullRequestReview when bot has no review, got %v", ghc.ReviewsDismissed)
 	}
 }
