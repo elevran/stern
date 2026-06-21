@@ -23,6 +23,8 @@ type MockClient struct {
 	Comments          []CommentRecord
 	AutoMergeEnabled  []string // nodeIDs passed to EnableAutoMerge
 	AutoMergeDisabled []string // nodeIDs passed to DisableAutoMerge
+	IssueClosed       []int    // issue numbers passed to CloseIssue
+	IssueReopened     []int    // issue numbers passed to ReopenIssue
 
 	// Return errors for specific method names.
 	Errors map[string]error
@@ -187,4 +189,20 @@ func (m *MockClient) GetFileContent(_ context.Context, _, _, path, ref string) (
 		return nil, fmt.Errorf("file %q not found at ref %q", path, ref)
 	}
 	return content, nil
+}
+
+func (m *MockClient) CloseIssue(_ context.Context, _, _ string, number int) error {
+	if err := m.err("CloseIssue"); err != nil {
+		return err
+	}
+	m.IssueClosed = append(m.IssueClosed, number)
+	return nil
+}
+
+func (m *MockClient) ReopenIssue(_ context.Context, _, _ string, number int) error {
+	if err := m.err("ReopenIssue"); err != nil {
+		return err
+	}
+	m.IssueReopened = append(m.IssueReopened, number)
+	return nil
 }
