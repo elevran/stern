@@ -9,7 +9,7 @@ import (
 )
 
 func writeFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o644) // #nosec G306 -- test scratch file
 }
 
 func TestGenerate_ParsesBack(t *testing.T) {
