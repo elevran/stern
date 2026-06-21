@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -187,25 +188,13 @@ reviewers:
 		t.Fatalf("LoadForPaths() error = %v", err)
 	}
 	wantApprovers := []string{"alice", "mike", "zoe"}
-	if got := result.Approvers; !equalStrings(got, wantApprovers) {
+	if got := result.Approvers; !slices.Equal(got, wantApprovers) {
 		t.Errorf("Approvers = %v, want %v (sorted ascending)", got, wantApprovers)
 	}
 	wantReviewers := []string{"bob", "yara"}
-	if got := result.Reviewers; !equalStrings(got, wantReviewers) {
+	if got := result.Reviewers; !slices.Equal(got, wantReviewers) {
 		t.Errorf("Reviewers = %v, want %v (sorted ascending)", got, wantReviewers)
 	}
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // captureLogger swaps logrus.StandardLogger().Out with a buffer for the
