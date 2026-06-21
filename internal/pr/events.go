@@ -49,6 +49,9 @@ func HandlePREvent(ctx context.Context, ghc prClient, org, repo string, evt *eve
 		if err := HandlePREventWIP(ctx, ghc, org, repo, p, opts); err != nil {
 			log.WithError(err).Warn("WIP detection failed")
 		}
+		if err := HandlePREventSize(ctx, ghc, org, repo, p, opts); err != nil {
+			log.WithError(err).Warn("size labeling failed")
+		}
 	case "edited":
 		if evt.Changes != nil && evt.Changes.Title != nil {
 			if err := HandlePREventWIP(ctx, ghc, org, repo, p, opts); err != nil {

@@ -31,7 +31,7 @@ type MockClient struct {
 	IssueClosed        []int    // issue numbers passed to CloseIssue
 	IssueReopened      []int    // issue numbers passed to ReopenIssue
 	MilestoneSet       []MilestoneSetRecord
-	MilestoneCleared   []int   // issue numbers passed to ClearMilestone
+	MilestoneCleared   []int // issue numbers passed to ClearMilestone
 	AssigneesAdded     []UsersRecord
 	AssigneesRemoved   []UsersRecord
 	ReviewersRequested []UsersRecord
