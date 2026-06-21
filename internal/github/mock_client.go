@@ -15,7 +15,7 @@ type MockClient struct {
 	OrgMembers      map[string]bool       // "org/user" -> is member
 	WriteAccess     map[string]bool       // "owner/repo/user" -> has write
 	Milestones      map[int]Milestone     // milestone number -> Milestone
-	FailedCheckRuns map[string][]CheckRun // "owner/repo/sha" -> failed check runs
+	CheckRuns map[string][]CheckRun // "owner/repo/sha" -> all check runs (caller filters)
 
 	// Mutable state modified by calls.
 	IssueLabels    map[int]map[string]bool // issue number -> set of label names
@@ -76,7 +76,7 @@ func NewMockClient() *MockClient {
 		OrgMembers:      make(map[string]bool),
 		WriteAccess:     make(map[string]bool),
 		Milestones:      make(map[int]Milestone),
-		FailedCheckRuns: make(map[string][]CheckRun),
+		CheckRuns: make(map[string][]CheckRun),
 		IssueLabels:     make(map[int]map[string]bool),
 		IssueMilestone:  make(map[int]int),
 		Assignees:       make(map[int][]string),
@@ -87,6 +87,40 @@ func NewMockClient() *MockClient {
 
 func (m *MockClient) err(method string) error {
 	return m.Errors[method]
+}
+
+// recordUsers adds users to the per-number slice in m, deduplicating
+// against the existing entries. It is shared by AddAssignees and
+// RequestReviewers to avoid duplicating the merge-set logic.
+func recordUsers(m map[int][]string, number int, users []string) {
+	existing := make(map[string]bool, len(m[number])+len(users))
+	for _, u := range m[number] {
+		existing[u] = true
+	}
+	for _, u := range users {
+		existing[u] = true
+	}
+	merged := make([]string, 0, len(existing))
+	for u := range existing {
+		merged = append(merged, u)
+	}
+	m[number] = merged
+}
+
+// unrecordUsers removes users from the per-number slice in m, preserving
+// order. It is shared by RemoveAssignees and RemoveReviewers.
+func unrecordUsers(m map[int][]string, number int, users []string) {
+	toRemove := make(map[string]bool, len(users))
+	for _, u := range users {
+		toRemove[u] = true
+	}
+	remaining := make([]string, 0, len(m[number]))
+	for _, u := range m[number] {
+		if !toRemove[u] {
+			remaining = append(remaining, u)
+		}
+	}
+	m[number] = remaining
 }
 
 func (m *MockClient) ListRepoLabels(_ context.Context, _, _ string) ([]Label, error) {
@@ -273,18 +307,7 @@ func (m *MockClient) AddAssignees(_ context.Context, _, _ string, number int, us
 	if err := m.err("AddAssignees"); err != nil {
 		return err
 	}
-	existing := make(map[string]bool)
-	for _, u := range m.Assignees[number] {
-		existing[u] = true
-	}
-	for _, u := range users {
-		existing[u] = true
-	}
-	merged := make([]string, 0, len(existing))
-	for u := range existing {
-		merged = append(merged, u)
-	}
-	m.Assignees[number] = merged
+	recordUsers(m.Assignees, number, users)
 	m.AssigneesAdded = append(m.AssigneesAdded, UsersRecord{Number: number, Users: users})
 	return nil
 }
@@ -293,17 +316,7 @@ func (m *MockClient) RemoveAssignees(_ context.Context, _, _ string, number int,
 	if err := m.err("RemoveAssignees"); err != nil {
 		return err
 	}
-	toRemove := make(map[string]bool, len(users))
-	for _, u := range users {
-		toRemove[u] = true
-	}
-	remaining := make([]string, 0, len(m.Assignees[number]))
-	for _, u := range m.Assignees[number] {
-		if !toRemove[u] {
-			remaining = append(remaining, u)
-		}
-	}
-	m.Assignees[number] = remaining
+	unrecordUsers(m.Assignees, number, users)
 	m.AssigneesRemoved = append(m.AssigneesRemoved, UsersRecord{Number: number, Users: users})
 	return nil
 }
@@ -312,18 +325,7 @@ func (m *MockClient) RequestReviewers(_ context.Context, _, _ string, number int
 	if err := m.err("RequestReviewers"); err != nil {
 		return err
 	}
-	existing := make(map[string]bool)
-	for _, u := range m.ReviewRequests[number] {
-		existing[u] = true
-	}
-	for _, u := range users {
-		existing[u] = true
-	}
-	merged := make([]string, 0, len(existing))
-	for u := range existing {
-		merged = append(merged, u)
-	}
-	m.ReviewRequests[number] = merged
+	recordUsers(m.ReviewRequests, number, users)
 	m.ReviewersRequested = append(m.ReviewersRequested, UsersRecord{Number: number, Users: users})
 	return nil
 }
@@ -332,26 +334,16 @@ func (m *MockClient) RemoveReviewers(_ context.Context, _, _ string, number int,
 	if err := m.err("RemoveReviewers"); err != nil {
 		return err
 	}
-	toRemove := make(map[string]bool, len(users))
-	for _, u := range users {
-		toRemove[u] = true
-	}
-	remaining := make([]string, 0, len(m.ReviewRequests[number]))
-	for _, u := range m.ReviewRequests[number] {
-		if !toRemove[u] {
-			remaining = append(remaining, u)
-		}
-	}
-	m.ReviewRequests[number] = remaining
+	unrecordUsers(m.ReviewRequests, number, users)
 	m.ReviewersRemoved = append(m.ReviewersRemoved, UsersRecord{Number: number, Users: users})
 	return nil
 }
 
-func (m *MockClient) ListFailedCheckRuns(_ context.Context, owner, repo, sha string) ([]CheckRun, error) {
-	if err := m.err("ListFailedCheckRuns"); err != nil {
+func (m *MockClient) ListCheckRuns(_ context.Context, owner, repo, sha string) ([]CheckRun, error) {
+	if err := m.err("ListCheckRuns"); err != nil {
 		return nil, err
 	}
-	return m.FailedCheckRuns[owner+"/"+repo+"/"+sha], nil
+	return m.CheckRuns[owner+"/"+repo+"/"+sha], nil
 }
 
 func (m *MockClient) RerunCheckRun(_ context.Context, _, _ string, id int64) error {
