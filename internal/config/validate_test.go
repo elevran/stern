@@ -192,3 +192,141 @@ func validOptions() *config.Options {
 		},
 	}
 }
+
+func TestValidate_LabelDefinitions(t *testing.T) {
+	tests := []struct {
+		name      string
+		labels    []config.LabelDefinition
+		wantFails []string // substrings expected in issue.Field
+	}{
+		{
+			name: "valid entry",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
+			},
+			wantFails: nil,
+		},
+		{
+			name: "empty name",
+			labels: []config.LabelDefinition{
+				{Name: "", Color: "0e8a16"},
+			},
+			wantFails: []string{"label_definitions[0].name"},
+		},
+		{
+			name: "color with hash",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "#0e8a16"},
+			},
+			wantFails: []string{"label_definitions[0].color"},
+		},
+		{
+			name: "color too short",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "fff"},
+			},
+			wantFails: []string{"label_definitions[0].color"},
+		},
+		{
+			name: "color non-hex",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "zzzzzz"},
+			},
+			wantFails: []string{"label_definitions[0].color"},
+		},
+		{
+			name: "description too long",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16", Description: strings.Repeat("a", 101)},
+			},
+			wantFails: []string{"label_definitions[0].description"},
+		},
+		{
+			name: "uppercase hex color accepted",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0E8A16"},
+			},
+			wantFails: nil,
+		},
+		{
+			name: "second entry wrong index in path",
+			labels: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+				{Name: "approved", Color: "0e8a16"},
+				{Name: "", Color: "0e8a16"},
+			},
+			wantFails: []string{"label_definitions[2].name"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.LabelDefinitions = tt.labels
+			issues := opts.Validate()
+			for _, want := range tt.wantFails {
+				found := false
+				for _, e := range issues {
+					if e.Level == "ERROR" && strings.Contains(e.Field, want) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected ERROR matching %q, got issues: %v", want, issues)
+				}
+			}
+			if tt.wantFails == nil {
+				for _, e := range issues {
+					if e.Level == "ERROR" && strings.HasPrefix(e.Field, "label_definitions") {
+						t.Errorf("expected no label_definitions errors, got: %v", issues)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestValidate_LabelCrossReferences(t *testing.T) {
+	t.Run("blocking label defined", func(t *testing.T) {
+		opts := validOptions()
+		opts.LabelDefinitions = []config.LabelDefinition{
+			{Name: "do-not-merge/hold", Color: "b60205"},
+		}
+		opts.Merge.BlockingLabels = []string{"do-not-merge/hold"}
+		issues := opts.Validate()
+		for _, e := range issues {
+			if strings.Contains(e.Field, "merge.blocking_labels") {
+				t.Errorf("expected no blocking_labels cross-ref error, got: %v", issues)
+			}
+		}
+	})
+	t.Run("blocking label undefined", func(t *testing.T) {
+		opts := validOptions()
+		opts.LabelDefinitions = []config.LabelDefinition{
+			{Name: "lgtm", Color: "0e8a16"},
+		}
+		opts.Merge.BlockingLabels = []string{"do-not-merge/hold"}
+		issues := opts.Validate()
+		found := false
+		for _, e := range issues {
+			if e.Level == "ERROR" && strings.Contains(e.Field, "merge.blocking_labels") &&
+				strings.Contains(e.Message, "do-not-merge/hold") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected blocking_labels cross-ref ERROR, got: %v", issues)
+		}
+	})
+	t.Run("empty label_definitions skips check", func(t *testing.T) {
+		opts := validOptions()
+		// no label_definitions, blocking_labels set to an unknown value
+		issues := opts.Validate()
+		for _, e := range issues {
+			if strings.Contains(e.Field, "merge.blocking_labels") &&
+				strings.Contains(e.Message, "not found in label_definitions") {
+				t.Errorf("expected no cross-ref error when no label_definitions, got: %v", issues)
+			}
+		}
+	})
+}

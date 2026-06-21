@@ -50,6 +50,17 @@ func (o *Options) Validate() []ValidationIssue {
 	issues = append(issues, o.Priority.validate(o.HasPlugin("priority"))...)
 	issues = append(issues, o.Size.validate(o.HasPlugin("size"))...)
 
+	// Per-entry label_definitions validation (#67).
+	for i := range o.LabelDefinitions {
+		issues = append(issues, o.LabelDefinitions[i].validate(i)...)
+	}
+
+	// Cross-reference of label names used by plugins to entries in
+	// label_definitions (#47). Only `merge.blocking_labels` exists as a
+	// reference field today; `approve.merge_label` and `cherry_pick.label`
+	// are not yet implemented in the Options struct (see deviations in PR Q2).
+	issues = append(issues, o.validateLabelReferences()...)
+
 	return issues
 }
 
@@ -75,6 +86,32 @@ func (o *CherryPickOptions) validate(pluginEnabled bool) []ValidationIssue {
 				Message: fmt.Sprintf("invalid regex: %v", err),
 			})
 		}
+	}
+	return issues
+}
+
+// validateLabelReferences checks that any label name referenced by a plugin
+// option is defined in label_definitions (#47).
+func (o *Options) validateLabelReferences() []ValidationIssue {
+	if len(o.LabelDefinitions) == 0 {
+		return nil // Nothing to cross-reference against.
+	}
+	defined := make(map[string]bool, len(o.LabelDefinitions))
+	for _, l := range o.LabelDefinitions {
+		if l.Name != "" {
+			defined[l.Name] = true
+		}
+	}
+	var issues []ValidationIssue
+	for _, bl := range o.Merge.BlockingLabels {
+		if bl == "" || defined[bl] {
+			continue
+		}
+		issues = append(issues, ValidationIssue{
+			Level:   "ERROR",
+			Field:   "merge.blocking_labels",
+			Message: fmt.Sprintf("label %q not found in label_definitions", bl),
+		})
 	}
 	return issues
 }
