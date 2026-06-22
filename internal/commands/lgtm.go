@@ -32,6 +32,10 @@ func NewLGTMHandler(_ *event.Context, ghc github.Client, opts *config.Options) H
 	}
 }
 
+// Pre enforces that /lgtm is used on a PR, that the caller is not the PR
+// author (unless allow_self_lgtm), and that the caller is in OWNERS
+// reviewers (with a write-access fallback when no OWNERS covers the changed
+// files). /lgtm cancel requires write access for any caller.
 func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/lgtm may only be used on pull requests")
@@ -53,6 +57,7 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 	return h.checkLGTMOwners(ctx, sc)
 }
 
+// Handle adds the lgtm label (or removes it on cancel, treating 404 as success).
 func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if isCancel(args) {
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.LGTM); err != nil && !github.IsNotFoundError(err) {

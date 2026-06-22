@@ -27,6 +27,8 @@ func NewLifecycleHandler(_ *event.Context, ghc github.Client, opts *config.Optio
 	return &LifecycleHandler{ghc: ghc, opts: opts}
 }
 
+// Pre enforces that the lifecycle plugin is enabled and validates the
+// subcommand argument (stale|rotten|frozen|active).
 func (h *LifecycleHandler) Pre(_ context.Context, _ *event.Context, args []string) error {
 	if !h.opts.Lifecycle.Enabled {
 		return PermissionError("lifecycle plugin is not enabled")
@@ -42,6 +44,8 @@ func (h *LifecycleHandler) Pre(_ context.Context, _ *event.Context, args []strin
 	}
 }
 
+// Handle sets the matching lifecycle/* label and removes the others.
+// "active" clears all three labels — there is no lifecycle/active label.
 func (h *LifecycleHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	switch args[0] {
 	case "stale":

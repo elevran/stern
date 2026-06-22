@@ -30,6 +30,7 @@ func NewHoldHandler(_ *event.Context, ghc github.Client, opts *config.Options) H
 	}
 }
 
+// Pre enforces that /hold is used on a PR. /hold cancel requires repo write access.
 func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/hold may only be used on pull requests")
@@ -46,6 +47,8 @@ func (h *HoldHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 	return nil
 }
 
+// Handle adds the do-not-merge/hold label (or removes it on cancel,
+// treating 404 as success).
 func (h *HoldHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if isCancel(args) {
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Hold); err != nil && !github.IsNotFoundError(err) {
