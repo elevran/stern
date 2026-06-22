@@ -94,7 +94,9 @@ func TestRunPREvent_NoOwnersCacheFile(t *testing.T) {
 
 func TestRunPREvent_BadEventPath(t *testing.T) {
 	withGlobals(t)
-	// GITHUB_EVENT_PATH unset → ParsePREvent returns error → runPREvent returns error.
+	// CI sets GITHUB_EVENT_PATH to the triggering event; force a parse error
+	// regardless by pointing at a nonexistent file.
+	t.Setenv("GITHUB_EVENT_PATH", "/nonexistent/path.json")
 	require.Error(t, runPREvent(github.NewMockClient()))
 }
 
@@ -108,9 +110,12 @@ func TestRunLifecycleCmd_DisabledNoOp(t *testing.T) {
 func TestRunLifecycleCmd_MissingOrgRepo(t *testing.T) {
 	withGlobals(t)
 	globalOpts.Lifecycle.Enabled = true
-	// globalOpts.Org / Repo both empty → lifecycleOrgRepo() returns error.
+	// globalOpts.Org / Repo both empty → runLifecycle returns error.
 	// Set a token so buildClient succeeds and we get past that step.
 	t.Setenv("GITHUB_TOKEN", "fake")
+	// CI sets GITHUB_REPOSITORY; clear it so config.OrgRepoFromGitHubRepository
+	// sees empty values and emits the "not set" error.
+	t.Setenv("GITHUB_REPOSITORY", "")
 
 	err := runLifecycleCmd(nil, nil)
 	require.Error(t, err)
@@ -155,7 +160,9 @@ func TestRunIssueEvent_Parses(t *testing.T) {
 
 func TestRunIssueEvent_BadEventPath(t *testing.T) {
 	withGlobals(t)
-	// GITHUB_EVENT_PATH unset → ParseIssueEvent returns error.
+	// CI sets GITHUB_EVENT_PATH to the triggering event; force a parse error
+	// regardless by pointing at a nonexistent file.
+	t.Setenv("GITHUB_EVENT_PATH", "/nonexistent/path.json")
 	require.Error(t, runIssueEvent(nil, nil))
 }
 
