@@ -22,6 +22,19 @@ func TestValidate_UnknownPlugin(t *testing.T) {
 	msg := errs[0].Error()
 	assert.Contains(t, msg, "ERROR")
 	assert.Contains(t, msg, "unknown plugin")
+	assert.Contains(t, msg, `(did you mean "lgtm"?)`,
+		"expected close-match suggestion in error, got: %s", msg)
+}
+
+func TestValidate_UnknownPlugin_NoCloseMatch(t *testing.T) {
+	opts := validOptions()
+	opts.Plugins = []string{"totally-bogus-name"}
+	errs := opts.Validate()
+	require.NotEmpty(t, errs)
+	msg := errs[0].Error()
+	assert.Contains(t, msg, "unknown plugin")
+	assert.NotContains(t, msg, "did you mean",
+		"should not suggest when no known plugin is within edit distance 2, got: %s", msg)
 }
 
 func TestValidate_InvalidMergeMethod(t *testing.T) {

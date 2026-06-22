@@ -33,10 +33,14 @@ func (o *Options) Validate() []ValidationIssue {
 	// Unknown plugin names.
 	for i, p := range o.Plugins {
 		if !isKnownPlugin(p) {
+			msg := fmt.Sprintf("unknown plugin %q", p)
+			if suggestion := suggestPlugin(p); suggestion != "" {
+				msg = fmt.Sprintf("%s (did you mean %q?)", msg, suggestion)
+			}
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
 				Field:   fmt.Sprintf("plugins[%d]", i),
-				Message: fmt.Sprintf("unknown plugin %q", p),
+				Message: msg,
 			})
 		}
 	}
@@ -66,6 +70,61 @@ func (o *Options) Validate() []ValidationIssue {
 
 func isKnownPlugin(name string) bool {
 	return slices.Contains(knownPlugins, name)
+}
+
+// suggestPlugin returns the closest known plugin name within edit distance 2,
+// or "" if no known plugin is close enough. Used to surface a "did you mean?"
+// hint for typos in plugins[]. Ties broken by knownPlugins slice order.
+func suggestPlugin(name string) string {
+	const maxDistance = 2
+	best := ""
+	bestDist := maxDistance + 1
+	for _, k := range knownPlugins {
+		d := editDistance(name, k)
+		if d < bestDist {
+			bestDist = d
+			best = k
+		}
+	}
+	if bestDist > maxDistance {
+		return ""
+	}
+	return best
+}
+
+// editDistance returns the Levenshtein distance between a and b.
+// Iterative two-row DP: O(len(a)*len(b)) time, O(min) space.
+func editDistance(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	// Iterate over the shorter string to keep the row slice small.
+	if len(a) > len(b) {
+		a, b = b, a
+	}
+	prev := make([]int, len(a)+1)
+	curr := make([]int, len(a)+1)
+	for i := range prev {
+		prev[i] = i
+	}
+	for j := 1; j <= len(b); j++ {
+		curr[0] = j
+		for i := 1; i <= len(a); i++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			curr[i] = min(prev[i]+1, curr[i-1]+1, prev[i-1]+cost)
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(a)]
 }
 
 // cherry_pick validation lives here as it needs cross-plugin awareness.
