@@ -43,6 +43,10 @@ func reviewAssignmentOpts(enabled bool, count int, loadBalancing string) *config
 	}
 }
 
+// future tests can seed OWNERS at different refs (e.g. base vs head SHA
+// differentiation, or cache-invalidation scenarios) without touching the helper.
+//
+//nolint:unparam // sha is fixed across current callers; left as a parameter so
 func seedOwners(ghc *github.MockClient, sha string, content []byte) {
 	ghc.FileContent["OWNERS@"+sha] = content
 }
