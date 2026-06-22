@@ -29,6 +29,8 @@ func NewAreaHandler(_ *event.Context, ghc github.Client, opts *config.Options) H
 	}
 }
 
+// Pre enforces that /area is used on a PR with a single argument that matches
+// one of the configured Area.Values.
 func (h *AreaHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/area may only be used on pull requests")
@@ -42,6 +44,8 @@ func (h *AreaHandler) Pre(_ context.Context, sc *event.Context, args []string) e
 	return nil
 }
 
+// Handle adds the area/<value> label to the PR. Multiple areas may coexist
+// (additive; no removal).
 func (h *AreaHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{"area/" + args[0]})
 }

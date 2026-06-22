@@ -33,6 +33,10 @@ func NewApproveHandler(_ *event.Context, ghc github.Client, opts *config.Options
 	}
 }
 
+// Pre enforces that /approve is used on a PR, that the caller is not the PR
+// author (unless allow_self_approval), and that the caller is in OWNERS
+// approvers (with a write-access fallback when no OWNERS covers the changed files).
+// /approve cancel is allowed for any caller with write access.
 func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/approve may only be used on pull requests")
@@ -54,6 +58,7 @@ func (h *ApproveHandler) Pre(ctx context.Context, sc *event.Context, args []stri
 	return h.checkApproveOwners(ctx, sc)
 }
 
+// Handle adds the approved label (or removes it on cancel, treating 404 as success).
 func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if isCancel(args) {
 		if err := h.ghc.RemoveLabel(ctx, sc.Org, sc.Repo, sc.IssueNumber, labels.Approved); err != nil && !github.IsNotFoundError(err) {

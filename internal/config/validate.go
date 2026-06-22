@@ -98,10 +98,10 @@ func editDistance(a, b string) int {
 	if a == b {
 		return 0
 	}
-	if len(a) == 0 {
+	if a == "" {
 		return len(b)
 	}
-	if len(b) == 0 {
+	if b == "" {
 		return len(a)
 	}
 	// Iterate over the shorter string to keep the row slice small.

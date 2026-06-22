@@ -22,6 +22,7 @@ func NewCCHandler(verb string) HandlerFactory {
 	}
 }
 
+// Pre enforces /cc and /uncc are used on a PR and require at least one user argument.
 func (h *CCHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/%s may only be used on pull requests", h.verb)
