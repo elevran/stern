@@ -81,8 +81,9 @@ func newConfigInitCmd() *cobra.Command {
 			fmt.Println("Next steps:")
 			fmt.Printf("  1. Review and edit %s\n", output)
 			fmt.Printf("  2. stern config check --config %s\n", output)
-			fmt.Printf("  3. stern config sync-labels --dry-run --config %s\n", output)
-			fmt.Printf("  4. stern config sync-labels --config %s\n", output)
+			fmt.Printf("  3. stern config sync-labels --check --config %s\n", output)
+			fmt.Printf("  4. stern config sync-labels --dry-run --config %s\n", output)
+			fmt.Printf("  5. stern config sync-labels --config %s\n", output)
 			return nil
 		},
 	}
@@ -135,6 +136,7 @@ func newConfigCheckCmd() *cobra.Command {
 func newConfigSyncLabelsCmd() *cobra.Command {
 	var (
 		syncDryRun bool
+		check      bool
 		prune      bool
 		yes        bool
 	)
@@ -165,6 +167,19 @@ func newConfigSyncLabelsCmd() *cobra.Command {
 			fmt.Printf("\nSummary: %d create, %d update, %d ok, %d extra\n",
 				len(plan.Creates), len(plan.Updates), len(plan.Unchanged), len(plan.Extras))
 
+			// --check is for CI gates: print plan, exit 1 on drift, 0 otherwise.
+			// Implies --dry-run: never applies changes, even with --prune.
+			if check {
+				if plan.HasDrift() {
+					fmt.Fprintln(os.Stderr, "\nDrift detected: repo labels do not match label_definitions.")
+					// Exit directly so Cobra does not print "Error: ..." after our
+					// output, matching the pattern used by `stern config check` (#18).
+					os.Exit(1)
+				}
+				fmt.Println("\n[check] No drift detected.")
+				return nil
+			}
+
 			if syncDryRun {
 				fmt.Println("\n[dry-run] No changes applied.")
 				return nil
@@ -188,6 +203,7 @@ func newConfigSyncLabelsCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "print plan without making changes")
+	cmd.Flags().BoolVar(&check, "check", false, "print plan and exit non-zero if drift is detected (implies --dry-run; for CI gates)")
 	cmd.Flags().BoolVar(&prune, "prune", false, "delete labels not in label_definitions")
 	cmd.Flags().BoolVar(&yes, "yes", false, "skip interactive confirmation when pruning")
 	return cmd
