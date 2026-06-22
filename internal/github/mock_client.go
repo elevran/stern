@@ -360,6 +360,7 @@ func (m *MockClient) ClearMilestone(_ context.Context, _, _ string, number int) 
 	m.MilestoneCleared = append(m.MilestoneCleared, number)
 	return nil
 }
+
 // AddAssignees merges users into m.Assignees[number] and appends to m.AssigneesAdded.
 func (m *MockClient) AddAssignees(_ context.Context, _, _ string, number int, users []string) error {
 	if err := m.err("AddAssignees"); err != nil {
