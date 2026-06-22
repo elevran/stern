@@ -27,17 +27,18 @@ func cherryPickReg() commands.Registry {
 	return commands.Registry{"cherry-pick": {Factory: commands.NewCherryPickHandler}}
 }
 
-func cherryPickOpts(pattern string) *config.Options {
+func cherryPickOpts() *config.Options {
 	return &config.Options{
 		CherryPick: config.CherryPickOptions{
-			AllowedBranchPattern: pattern,
+			AllowedBranchPattern: "release-.*",
 		},
 	}
 }
 
 // mergedPRContext returns an event.Context where sc.PR is a merged PR with
 // a known MergeCommitSHA, mimicking the state after a PR has been merged.
-func mergedPRContext(author string, mergedSHA string) *event.Context {
+func mergedPRContext(mergedSHA string) *event.Context {
+	author := "alice"
 	p := &github.PullRequest{
 		Number:         1,
 		Author:         author,
@@ -62,7 +63,7 @@ func TestCherryPick_Pre_RejectsNotMerged(t *testing.T) {
 	ghc.WriteAccess["elevran/stern/alice"] = true
 
 	commands.Dispatch(context.Background(), sc, "/cherry-pick release-1.0", cherryPickReg(),
-		ghc, cherryPickOpts("release-.*"))
+		ghc, cherryPickOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction for non-merged PR")
@@ -72,11 +73,11 @@ func TestCherryPick_Pre_RejectsNotMerged(t *testing.T) {
 
 func TestCherryPick_Pre_RejectsBranchNotMatchingPattern(t *testing.T) {
 	ghc := github.NewMockClient()
-	sc := mergedPRContext("alice", "merge-sha")
+	sc := mergedPRContext("merge-sha")
 	ghc.WriteAccess["elevran/stern/alice"] = true
 
 	commands.Dispatch(context.Background(), sc, "/cherry-pick main", cherryPickReg(),
-		ghc, cherryPickOpts("release-.*"))
+		ghc, cherryPickOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "-1", ghc.Reactions[0].Content)
@@ -86,11 +87,11 @@ func TestCherryPick_Pre_RejectsBranchNotMatchingPattern(t *testing.T) {
 
 func TestCherryPick_Pre_RejectsNonWriter(t *testing.T) {
 	ghc := github.NewMockClient()
-	sc := mergedPRContext("alice", "merge-sha")
+	sc := mergedPRContext("merge-sha")
 	// alice has no write access in mock.
 
 	commands.Dispatch(context.Background(), sc, "/cherry-pick release-1.0", cherryPickReg(),
-		ghc, cherryPickOpts("release-.*"))
+		ghc, cherryPickOpts())
 
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction for non-writer")
@@ -100,14 +101,14 @@ func TestCherryPick_Pre_RejectsNonWriter(t *testing.T) {
 
 func TestCherryPick_Handle_HappyPath(t *testing.T) {
 	ghc := github.NewMockClient()
-	sc := mergedPRContext("alice", "merge-sha-123")
+	sc := mergedPRContext("merge-sha-123")
 	ghc.WriteAccess["elevran/stern/alice"] = true
 
 	// All git steps succeed.
 	withGitExec(t, func(args ...string) error { return nil })
 
 	commands.Dispatch(context.Background(), sc, "/cherry-pick release-1.0", cherryPickReg(),
-		ghc, cherryPickOpts("release-.*"))
+		ghc, cherryPickOpts())
 
 	// Expected git calls in order.
 	require.NotEmpty(t, ghc.CreatedPRMeta, "expected CreatePullRequest to be called")
@@ -130,7 +131,7 @@ func TestCherryPick_Handle_HappyPath(t *testing.T) {
 
 func TestCherryPick_Handle_Conflict(t *testing.T) {
 	ghc := github.NewMockClient()
-	sc := mergedPRContext("alice", "merge-sha-123")
+	sc := mergedPRContext("merge-sha-123")
 	ghc.WriteAccess["elevran/stern/alice"] = true
 
 	// Cherry-pick fails: 3rd call (the cherry-pick itself) returns an error.
@@ -143,7 +144,7 @@ func TestCherryPick_Handle_Conflict(t *testing.T) {
 	})
 
 	commands.Dispatch(context.Background(), sc, "/cherry-pick release-1.0", cherryPickReg(),
-		ghc, cherryPickOpts("release-.*"))
+		ghc, cherryPickOpts())
 
 	// Conflict must NOT create a PR.
 	assert.Empty(t, ghc.CreatedPRMeta, "expected CreatePullRequest NOT called on conflict")

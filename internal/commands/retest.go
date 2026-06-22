@@ -25,6 +25,7 @@ func NewRetestHandler(_ *event.Context, ghc github.Client, _ *config.Options) Ha
 	return &RetestHandler{ghc: ghc}
 }
 
+// Pre enforces that /retest is used on a PR and requires repo write access.
 func (h *RetestHandler) Pre(ctx context.Context, sc *event.Context, _ []string) error {
 	if sc.PR == nil {
 		return PermissionError("/retest may only be used on pull requests")
@@ -48,6 +49,9 @@ var failedCheckConclusions = map[string]bool{
 	"action_required": true,
 }
 
+// Handle lists the PR's check runs and re-runs any whose conclusion is in
+// failedCheckConclusions (failure/timed_out/cancelled/action_required). If
+// none are failed, posts a comment explaining that and returns nil.
 func (h *RetestHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
 	allRuns, err := h.ghc.ListCheckRuns(ctx, sc.Org, sc.Repo, sc.PR.HeadSHA)
 	if err != nil {
@@ -71,6 +75,7 @@ func (h *RetestHandler) Handle(ctx context.Context, sc *event.Context, _ []strin
 	return nil
 }
 
+// Post is a no-op: /retest does not affect auto-merge eligibility.
 func (h *RetestHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
 	return nil
 }

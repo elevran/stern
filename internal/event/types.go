@@ -6,11 +6,17 @@ import (
 	ighub "github.com/elevran/stern/internal/github"
 )
 
-// Type aliases — callers import event, not go-github directly.
+// Type aliases — callers import event, not go-github directly. The revive
+// `exported` rule requires each alias to begin with the type name; the
+// per-type doc comments below satisfy that rule.
 type (
-	CommentEvent    = github.IssueCommentEvent
-	PREvent         = github.PullRequestEvent
-	IssueEvent      = github.IssuesEvent
+	// CommentEvent is the GitHub issue_comment webhook payload.
+	CommentEvent = github.IssueCommentEvent
+	// PREvent is the GitHub pull_request webhook payload.
+	PREvent = github.PullRequestEvent
+	// IssueEvent is the GitHub issues webhook payload.
+	IssueEvent = github.IssuesEvent
+	// CheckSuiteEvent is the GitHub check_suite webhook payload.
 	CheckSuiteEvent = github.CheckSuiteEvent
 )
 

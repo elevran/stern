@@ -87,6 +87,9 @@ func (h *CherryPickHandler) commandVerb() string {
 	}
 }
 
+// Pre enforces that /cherry-pick is used on a merged PR, requires a target
+// branch as the first argument, requires the caller to have repo write access,
+// and validates that the target branch matches allowed_branch_pattern.
 func (h *CherryPickHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/%s may only be used on pull requests", h.commandVerb())
@@ -112,6 +115,11 @@ func (h *CherryPickHandler) Pre(ctx context.Context, sc *event.Context, args []s
 	return nil
 }
 
+// Handle performs the cherry-pick: fetches the target branch, creates a new
+// branch, cherry-picks the merged PR's merge commit, pushes the new branch,
+// opens a tracking PR, and posts a comment linking to it. On conflict the
+// conflict-resolution instructions are posted as a comment instead of
+// returning an error, so the +1 reaction still fires.
 func (h *CherryPickHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	target := args[0]
 	newBranch := fmt.Sprintf("cherry-pick-%d-%s", sc.IssueNumber, target)
@@ -150,6 +158,8 @@ func (h *CherryPickHandler) Handle(ctx context.Context, sc *event.Context, args 
 		fmt.Sprintf("Cherry-pick PR opened: #%d", prNum))
 }
 
+// Post is a no-op: cherry-pick creates a new PR; auto-merge eligibility is
+// evaluated on the new PR, not the source.
 func (h *CherryPickHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
 	return nil
 }

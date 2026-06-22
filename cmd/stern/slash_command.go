@@ -70,9 +70,7 @@ func runSlashCommand(ghc github.Client) error {
 	}
 
 	sc := event.ContextFromComment(evt, org, repo, globalOpts.BotLogin)
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		return err
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 
 	body := ""
 	if evt.Comment != nil {
@@ -86,18 +84,17 @@ func runSlashCommand(ghc github.Client) error {
 
 // hydratePR populates sc.PR with the pull request data for the issue
 // referenced by the comment, but only when the comment targets a pull
-// request. Failures are logged and sc.PR is left nil; the function
-// returns no error so that a hydration failure does not block the
-// command dispatch.
-func hydratePR(ctx context.Context, sc *event.Context, evt *event.CommentEvent, ghc github.Client) error {
+// request. Hydration failures are logged and sc.PR is left nil; the
+// command still dispatches, since PR context is optional for most
+// handlers.
+func hydratePR(ctx context.Context, sc *event.Context, evt *event.CommentEvent, ghc github.Client) {
 	if evt == nil || evt.Issue == nil || !evt.Issue.IsPullRequest() {
-		return nil
+		return
 	}
 	pullReq, err := ghc.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {
 		log.WithError(err).Warn("failed to hydrate PR")
-		return nil
+		return
 	}
 	sc.PR = &pullReq
-	return nil
 }

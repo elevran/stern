@@ -26,6 +26,7 @@ func NewMilestoneHandler(_ *event.Context, ghc github.Client, _ *config.Options)
 	return &MilestoneHandler{ghc: ghc}
 }
 
+// Pre enforces that /milestone requires repo write access.
 func (h *MilestoneHandler) Pre(ctx context.Context, sc *event.Context, _ []string) error {
 	ok, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
 	if err != nil {
@@ -37,6 +38,9 @@ func (h *MilestoneHandler) Pre(ctx context.Context, sc *event.Context, _ []strin
 	return nil
 }
 
+// Handle resolves the milestone argument: "clear" removes the milestone, a
+// numeric ID is applied directly, otherwise the argument is matched
+// case-insensitively against existing milestone titles.
 func (h *MilestoneHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if len(args) == 0 {
 		return PermissionError("usage: /milestone <title-or-id> | clear")

@@ -31,6 +31,8 @@ func NewPriorityHandler(_ *event.Context, ghc github.Client, opts *config.Option
 	}
 }
 
+// Pre enforces that /priority is used on a PR and validates the value
+// argument (or "cancel"/empty, both of which are always allowed).
 func (h *PriorityHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/priority may only be used on pull requests")
@@ -45,6 +47,9 @@ func (h *PriorityHandler) Pre(_ context.Context, sc *event.Context, args []strin
 	return nil
 }
 
+// Handle strips every existing priority/* label then adds the new
+// priority/<value> label (or none, if "cancel"/empty). Mutual exclusion:
+// at most one priority/* label is on a PR after this returns.
 func (h *PriorityHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	if err := h.removeAllPriorityLabels(ctx, sc); err != nil {
 		return err

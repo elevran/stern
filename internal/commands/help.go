@@ -28,8 +28,12 @@ func NewHelpHandler(regFn func() Registry) HandlerFactory {
 	}
 }
 
+// Pre is a no-op: /help has no authorisation requirements.
 func (h *HelpHandler) Pre(_ context.Context, _ *event.Context, _ []string) error { return nil }
 
+// Handle renders the registry as a Markdown comment listing each command's
+// usage and short description, filtered to enabled plugins if h.opts.Plugins
+// is non-empty.
 func (h *HelpHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
 	var sb strings.Builder
 	sb.WriteString("## Available commands\n\n")
@@ -52,6 +56,7 @@ func (h *HelpHandler) Handle(ctx context.Context, sc *event.Context, _ []string)
 	return h.ghc.CreateIssueComment(ctx, sc.Org, sc.Repo, sc.IssueNumber, sb.String())
 }
 
+// Post is a no-op: /help does not affect auto-merge eligibility.
 func (h *HelpHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
 	return nil
 }

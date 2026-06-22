@@ -53,8 +53,11 @@ type labelMutatingBase struct {
 }
 
 func (b *labelMutatingBase) Post(ctx context.Context, sc *event.Context, _ []string, handleErr error) error {
+	// Intentionally swallow handleErr: Post only re-evaluates auto-merge
+	// eligibility on successful Handle (see struct doc). nilerr can't see
+	// the intent through the parameter shadowing.
 	if handleErr != nil {
-		return nil
+		return nil //nolint:nilerr
 	}
 	pr, err := b.mergeGHC.GetPullRequest(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {

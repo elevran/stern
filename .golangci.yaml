@@ -17,12 +17,56 @@ formatters:
 linters:
   default: none
   enable:
+    # correctness and robustness
     - govet
-    - staticcheck
+    - staticcheck   # SA* (bugs) + ST* (style) — stylecheck is part of staticcheck
     - ineffassign
     - unused
     - errcheck
-    - misspell
+    - errorlint     # errors.Is/As, %w wrapping
+    - nilerr        # if err != nil { return nil, nil }
+    - nilnil        # (nil, nil) returns on value+error signatures
+    - exhaustive    # switch coverage on const enum blocks
+    - contextcheck  # context propagation through call chains
     - gosec
     - noctx
     - bodyclose
+
+    # idiomatic Go
+    - misspell
+    - revive
+    - gocritic
+    - unconvert     # unnecessary type conversions
+    - usestdlibvars # http.MethodGet instead of "GET", etc.
+
+    # documentation and naming
+    - godot  # comments end with a period
+    - godox  # surface TODO/FIXME comments
+
+    # test quality
+    - thelper      # test helpers must call t.Helper()
+    - testifylint  # correct testify usage
+
+    # exported API hygiene
+    - unparam  # parameters that always receive the same value
+
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-ST1000" # package-level doc comment — too noisy for internal packages
+    revive:
+      rules:
+        - name: exported          # exported symbols must have doc comments starting with the name
+        - name: var-naming        # no stutter, no Hungarian notation
+        - name: error-naming      # error types: Err prefix, Error suffix
+        - name: receiver-naming   # consistent receiver names per type
+    gocritic:
+      enabled-checks:
+        - sloppyReassign
+        - importShadow
+        - deferInLoop
+        - rangeValCopy
+        - unnecessaryBlock
+        - emptyStringTest
+        - preferStringWriter

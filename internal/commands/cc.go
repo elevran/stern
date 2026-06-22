@@ -22,6 +22,7 @@ func NewCCHandler(verb string) HandlerFactory {
 	}
 }
 
+// Pre enforces /cc and /uncc are used on a PR and require at least one user argument.
 func (h *CCHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/%s may only be used on pull requests", h.verb)
@@ -32,6 +33,8 @@ func (h *CCHandler) Pre(_ context.Context, sc *event.Context, args []string) err
 	return nil
 }
 
+// Handle parses the user list and applies RequestReviewers (cc) or
+// RemoveReviewers (uncc) per the handler's verb.
 func (h *CCHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	users, err := parseUsers(args, "")
 	if err != nil {

@@ -15,10 +15,10 @@ import (
 )
 
 // writeEvent writes a JSON-encoded CommentEvent payload to a temporary file
-// and returns its path. The event is also returned for direct inspection in
-// tests that want to verify the parsed fields. GITHUB_EVENT_PATH is set to
-// the temp file so ParseCommentEvent picks it up.
-func writeEvent(t *testing.T, evt gh.IssueCommentEvent) string {
+// and sets GITHUB_EVENT_PATH so ParseCommentEvent picks it up. No path is
+// returned because no caller needs it — t.TempDir() handles cleanup and the
+// event itself is owned by the test.
+func writeEvent(t *testing.T, evt gh.IssueCommentEvent) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "event.json")
@@ -26,11 +26,10 @@ func writeEvent(t *testing.T, evt gh.IssueCommentEvent) string {
 	if err != nil {
 		t.Fatalf("marshal event: %v", err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil { // #nosec G306 -- test scratch file
 		t.Fatalf("write event: %v", err)
 	}
 	t.Setenv("GITHUB_EVENT_PATH", path)
-	return path
 }
 
 func botEvent(login string) gh.IssueCommentEvent {
@@ -128,9 +127,7 @@ func TestRunSlashCommand_PRHydration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCommentEvent() error = %v", err)
 	}
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR == nil {
 		t.Fatal("expected sc.PR to be hydrated")
 	}
@@ -161,9 +158,7 @@ func TestRunSlashCommand_PRHydration_NotPullRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCommentEvent() error = %v", err)
 	}
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR != nil {
 		t.Errorf("expected sc.PR to remain nil for a non-PR issue, got %+v", sc.PR)
 	}
@@ -192,9 +187,7 @@ func TestRunSlashCommand_PRHydration_GetPullRequestError(t *testing.T) {
 	}
 	// Hydration failures are logged but must not propagate; the comment
 	// still dispatches with sc.PR == nil.
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v, want nil", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR != nil {
 		t.Errorf("expected sc.PR to be nil after GetPullRequest error, got %+v", sc.PR)
 	}

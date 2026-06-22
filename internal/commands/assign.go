@@ -23,6 +23,8 @@ func NewAssignHandler(verb string) HandlerFactory {
 	}
 }
 
+// Pre enforces that /assign and /unassign are used on a PR and applies the
+// self-vs-others authorisation split (org member for self, write access for others).
 func (h *AssignHandler) Pre(ctx context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/%s may only be used on pull requests", h.verb)
@@ -49,6 +51,8 @@ func (h *AssignHandler) Pre(ctx context.Context, sc *event.Context, args []strin
 	return nil
 }
 
+// Handle parses the user list (defaulting to sc.Author when empty) and applies
+// AddAssignees or RemoveAssignees per the handler's verb.
 func (h *AssignHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	users, err := parseUsers(args, sc.Author)
 	if err != nil {

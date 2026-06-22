@@ -29,6 +29,8 @@ func NewKindHandler(_ *event.Context, ghc github.Client, opts *config.Options) H
 	}
 }
 
+// Pre enforces that /kind is used on a PR with a single argument that matches
+// one of the configured Kind.Values.
 func (h *KindHandler) Pre(_ context.Context, sc *event.Context, args []string) error {
 	if sc.PR == nil {
 		return PermissionError("/kind may only be used on pull requests")
@@ -42,6 +44,8 @@ func (h *KindHandler) Pre(_ context.Context, sc *event.Context, args []string) e
 	return nil
 }
 
+// Handle adds the kind/<value> label to the PR. Multiple kinds may coexist
+// (additive; no removal).
 func (h *KindHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	return h.ghc.AddLabels(ctx, sc.Org, sc.Repo, sc.IssueNumber, []string{"kind/" + args[0]})
 }

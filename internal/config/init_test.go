@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/elevran/stern/internal/config"
@@ -36,7 +35,7 @@ func TestGenerate_ContainsAllPlugins(t *testing.T) {
 	s := string(data)
 	plugins := []string{"lgtm", "approve", "hold", "wip", "cherry-pick", "review_assignment", "size", "lifecycle"}
 	for _, p := range plugins {
-		assert.True(t, strings.Contains(s, p), "generated config does not mention plugin %q", p)
+		assert.Contains(t, s, p, "generated config does not mention plugin %q", p)
 	}
 }
 
@@ -56,7 +55,7 @@ func TestOrgRepoFromGitHubRepository(t *testing.T) {
 	t.Run("empty env", func(t *testing.T) {
 		t.Setenv("GITHUB_REPOSITORY", "")
 		org, repo := config.OrgRepoFromGitHubRepository("", "")
-		assert.Equal(t, "", org)
-		assert.Equal(t, "", repo)
+		assert.Empty(t, org)
+		assert.Empty(t, repo)
 	})
 }
