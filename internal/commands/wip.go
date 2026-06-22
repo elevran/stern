@@ -31,6 +31,7 @@ func NewWIPHandler(_ *event.Context, ghc github.Client, opts *config.Options) Ha
 	}
 }
 
+// Pre enforces that /wip is used on a PR.
 func (h *WIPHandler) Pre(_ context.Context, sc *event.Context, _ []string) error {
 	if sc.PR == nil {
 		return PermissionError("/wip may only be used on pull requests")
@@ -38,6 +39,7 @@ func (h *WIPHandler) Pre(_ context.Context, sc *event.Context, _ []string) error
 	return nil
 }
 
+// Handle toggles the do-not-merge/wip label: removes it if present, adds it otherwise.
 func (h *WIPHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
 	hasWIP := slices.ContainsFunc(sc.PR.Labels, func(l string) bool { return strings.EqualFold(l, labels.WIP) })
 	if hasWIP {
