@@ -15,6 +15,7 @@ type lgtmClient interface {
 	github.LabelsClient
 	github.PullRequestsClient
 	github.ContentClient
+	github.PermissionsClient
 }
 
 // LGTMHandler handles /lgtm and /lgtm cancel.
@@ -36,6 +37,14 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 		return PermissionError("/lgtm may only be used on pull requests")
 	}
 	if isCancel(args) {
+		// Removing an existing LGTM requires write access (mirrors /hold cancel).
+		ok, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return PermissionError("%s does not have write access to remove an LGTM", sc.Author)
+		}
 		return nil
 	}
 	if !h.opts.LGTM.AllowSelfLGTM && sc.PR.Author == sc.Author {
