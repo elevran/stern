@@ -71,18 +71,13 @@ func (h *ApproveHandler) Handle(ctx context.Context, sc *event.Context, args []s
 //  2. owners.UncoveredFiles then enforces per-file coverage (M6 model):
 //     a known approver must also be an approver for every changed file.
 func (h *ApproveHandler) checkApproveOwners(ctx context.Context, sc *event.Context) error {
-	if err := checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
-		return r.IsApprover(sc.Author)
-	}, "%s is not in the OWNERS approvers list for this PR's changed files"); err != nil {
-		return err
-	}
-	if sc.PR.BaseSHA == "" {
-		// checkOwners already returned PermissionError for an empty BaseSHA,
-		// but defend against a path that bypasses it (e.g. future refactors).
-		return PermissionError("cannot verify OWNERS coverage: PR base SHA is unknown")
-	}
 	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 	if err != nil {
+		return err
+	}
+	if err := checkOwners(ctx, sc, h.ghc, files, func(r *owners.ResolvedOwners) bool {
+		return r.IsApprover(sc.Author)
+	}, "%s is not in the OWNERS approvers list for this PR's changed files"); err != nil {
 		return err
 	}
 	uncovered, err := owners.UncoveredFiles(ctx, h.ghc, sc.Org, sc.Repo, sc.PR.BaseSHA, sc.Author, files)

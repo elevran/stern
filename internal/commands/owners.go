@@ -21,19 +21,20 @@ type ownersCheckerClient interface {
 // head SHA (which is attacker-controlled on fork PRs). When no OWNERS files
 // cover the changed paths, the check falls back to repo write access so the
 // no-OWNERS case fails closed rather than open.
+//
+// The caller supplies the pre-fetched file list (changedPaths) so that
+// handlers which need it for additional checks — e.g. /approve layering
+// owners.UncoveredFiles — can avoid a second ListPullRequestFiles round trip.
 func checkOwners(
 	ctx context.Context,
 	sc *event.Context,
 	ghc ownersCheckerClient,
+	files []string,
 	check func(*owners.ResolvedOwners) bool,
 	permFmt string,
 ) error {
 	if sc.PR.BaseSHA == "" {
 		return PermissionError("cannot verify OWNERS authorization: PR base SHA is unknown")
-	}
-	files, err := ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
-	if err != nil {
-		return err
 	}
 	resolved, err := owners.LoadForPaths(ctx, ghc, nil, sc.Org, sc.Repo, sc.PR.BaseSHA, files)
 	if err != nil {

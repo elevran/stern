@@ -65,7 +65,11 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
-	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
+	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	return checkOwners(ctx, sc, h.ghc, files, func(r *owners.ResolvedOwners) bool {
 		return r.IsReviewer(sc.Author) || r.IsApprover(sc.Author)
 	}, "%s is not in the OWNERS reviewers list for this PR's changed files")
 }
