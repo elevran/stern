@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// default-strict path); kept as a parameter so future cases exercising
+// allow_self_approval: true can override without touching the helper.
+//
+//nolint:unparam // allowSelf is fixed to false across current callers (the
 func approveOpts(allowSelf bool) *config.Options {
 	return &config.Options{
 		Approve: config.ApproveOptions{

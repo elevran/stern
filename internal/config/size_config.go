@@ -104,6 +104,10 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 }
 
 // fieldPath builds a "size.buckets[N].suffix" style path for validation messages.
+//
+// is kept generic so future label_definitions-style cross-references can reuse it.
+//
+//nolint:unparam // prefix is hardcoded to "size.buckets" today but the helper
 func fieldPath(prefix string, idx int, suffix string) string {
 	if suffix == "" {
 		return fmt.Sprintf("%s[%d]", prefix, idx)

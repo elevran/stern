@@ -89,6 +89,11 @@ func runSlashCommand(ghc github.Client) error {
 // request. Failures are logged and sc.PR is left nil; the function
 // returns no error so that a hydration failure does not block the
 // command dispatch.
+//
+// dispatch wiring (cmd/stern/slash_command.go and the test) treats hydratePR
+// uniformly with other fallible steps; the body intentionally swallows errors.
+//
+//nolint:unparam // the (error) return is part of the call-site shape so that
 func hydratePR(ctx context.Context, sc *event.Context, evt *event.CommentEvent, ghc github.Client) error {
 	if evt == nil || evt.Issue == nil || !evt.Issue.IsPullRequest() {
 		return nil

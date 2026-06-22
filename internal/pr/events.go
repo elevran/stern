@@ -15,7 +15,7 @@ import (
 )
 
 // prClient is the minimum Client surface the PR event handlers use.
-// It mirrors the parts of github.Client needed by PREventHandler,
+// It mirrors the parts of github.Client needed by EventHandler,
 // HandlePREventSize, and HandlePREventReviewAssignment.
 type prClient interface {
 	github.LabelsClient
@@ -25,24 +25,24 @@ type prClient interface {
 	github.ContentClient
 }
 
-// PREventHandler routes pull_request_target webhook events to the
+// EventHandler routes pull_request_target webhook events to the
 // appropriate sub-handlers (WIP label, size label, LGTM/approve
 // invalidation, reviewer assignment). It holds the GitHub client and
 // resolved config so individual sub-handlers can be invoked with narrow
 // signatures.
-type PREventHandler struct {
+type EventHandler struct {
 	ghc  prClient
 	opts *config.Options
 }
 
-// NewPREventHandler constructs a handler bound to the given GitHub client
+// NewEventHandler constructs a handler bound to the given GitHub client
 // and resolved configuration.
-func NewPREventHandler(ghc prClient, opts *config.Options) *PREventHandler {
-	return &PREventHandler{ghc: ghc, opts: opts}
+func NewEventHandler(ghc prClient, opts *config.Options) *EventHandler {
+	return &EventHandler{ghc: ghc, opts: opts}
 }
 
 // Handle dispatches a pull_request_target event to the appropriate sub-handlers.
-func (h *PREventHandler) Handle(ctx context.Context, org, repo string, evt *event.PREvent) error {
+func (h *EventHandler) Handle(ctx context.Context, org, repo string, evt *event.PREvent) error {
 	action := evt.GetAction()
 
 	log := logrus.WithFields(logrus.Fields{
@@ -115,7 +115,7 @@ func IsTitleWIP(title string) bool {
 }
 
 // handleWIP applies or removes the WIP label based on PR title and draft state.
-func (h *PREventHandler) handleWIP(ctx context.Context, org, repo string, p github.PullRequest) error {
+func (h *EventHandler) handleWIP(ctx context.Context, org, repo string, p github.PullRequest) error {
 	shouldHaveWIP := IsTitleWIP(p.Title) || p.IsDraft
 	currentWIP := slices.ContainsFunc(p.Labels, func(l string) bool { return strings.EqualFold(l, labels.WIP) })
 	number := p.Number
@@ -142,7 +142,7 @@ func (h *PREventHandler) handleWIP(ctx context.Context, org, repo string, p gith
 }
 
 // invalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
-func (h *PREventHandler) invalidateLGTMOnPush(ctx context.Context, org, repo string, p github.PullRequest) error {
+func (h *EventHandler) invalidateLGTMOnPush(ctx context.Context, org, repo string, p github.PullRequest) error {
 	if !h.opts.LGTM.InvalidateOnPush {
 		return nil
 	}
@@ -153,7 +153,7 @@ func (h *PREventHandler) invalidateLGTMOnPush(ctx context.Context, org, repo str
 }
 
 // invalidateApproveOnPush removes the approved label when a PR receives new commits.
-func (h *PREventHandler) invalidateApproveOnPush(ctx context.Context, org, repo string, p github.PullRequest) error {
+func (h *EventHandler) invalidateApproveOnPush(ctx context.Context, org, repo string, p github.PullRequest) error {
 	if !h.opts.Approve.InvalidateOnPush {
 		return nil
 	}
@@ -165,29 +165,29 @@ func (h *PREventHandler) invalidateApproveOnPush(ctx context.Context, org, repo 
 
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
 //
-// Deprecated: construct a PREventHandler with NewPREventHandler and call its
+// Deprecated: construct a EventHandler with NewEventHandler and call its
 // Handle method. This wrapper is retained for callers that have not migrated.
 func HandlePREvent(ctx context.Context, ghc github.Client, org, repo string, evt *event.PREvent, opts *config.Options) error {
-	return NewPREventHandler(ghc, opts).Handle(ctx, org, repo, evt)
+	return NewEventHandler(ghc, opts).Handle(ctx, org, repo, evt)
 }
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
 //
-// Deprecated: call (*PREventHandler).handleWIP via a PREventHandler instead.
+// Deprecated: call (*EventHandler).handleWIP via a EventHandler instead.
 func HandlePREventWIP(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	return NewPREventHandler(ghc, opts).handleWIP(ctx, org, repo, p)
+	return NewEventHandler(ghc, opts).handleWIP(ctx, org, repo, p)
 }
 
 // InvalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
 //
-// Deprecated: call (*PREventHandler).invalidateLGTMOnPush via a PREventHandler instead.
+// Deprecated: call (*EventHandler).invalidateLGTMOnPush via a EventHandler instead.
 func InvalidateLGTMOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	return NewPREventHandler(ghc, opts).invalidateLGTMOnPush(ctx, org, repo, p)
+	return NewEventHandler(ghc, opts).invalidateLGTMOnPush(ctx, org, repo, p)
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
 //
-// Deprecated: call (*PREventHandler).invalidateApproveOnPush via a PREventHandler instead.
+// Deprecated: call (*EventHandler).invalidateApproveOnPush via a EventHandler instead.
 func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
-	return NewPREventHandler(ghc, opts).invalidateApproveOnPush(ctx, org, repo, p)
+	return NewEventHandler(ghc, opts).invalidateApproveOnPush(ctx, org, repo, p)
 }

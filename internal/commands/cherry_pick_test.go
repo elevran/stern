@@ -27,6 +27,10 @@ func cherryPickReg() commands.Registry {
 	return commands.Registry{"cherry-pick": {Factory: commands.NewCherryPickHandler}}
 }
 
+// so future cases (alternate branch patterns, negative tests) can override without
+// touching the helper signature.
+//
+//nolint:unparam // pattern is fixed across current callers; left as a parameter
 func cherryPickOpts(pattern string) *config.Options {
 	return &config.Options{
 		CherryPick: config.CherryPickOptions{
@@ -37,6 +41,10 @@ func cherryPickOpts(pattern string) *config.Options {
 
 // mergedPRContext returns an event.Context where sc.PR is a merged PR with
 // a known MergeCommitSHA, mimicking the state after a PR has been merged.
+// so a future test can verify behavior under a different contributor identity
+// (e.g. bot comment vs human).
+//
+//nolint:unparam // author is fixed across current callers; kept as a parameter
 func mergedPRContext(author string, mergedSHA string) *event.Context {
 	p := &github.PullRequest{
 		Number:         1,
