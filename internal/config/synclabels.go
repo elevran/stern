@@ -57,6 +57,14 @@ func DiffLabels(desired []LabelDefinition, current []github.Label) LabelPlan {
 	return plan
 }
 
+// HasDrift reports whether the repo state differs from desired in a way
+// that requires writes: at least one CREATE (label missing) or UPDATE
+// (color/description drift). EXTRAs (labels present in repo but absent
+// from desired) are NOT drift — they are addressed separately via --prune.
+func (p *LabelPlan) HasDrift() bool {
+	return len(p.Creates) > 0 || len(p.Updates) > 0
+}
+
 // Print writes a human-readable plan to w.
 func (p *LabelPlan) Print(w io.Writer) {
 	for _, d := range p.Creates {

@@ -108,3 +108,66 @@ func TestPrint(t *testing.T) {
 	// Just ensure it doesn't panic and produces output.
 	plan.Print(os.Stdout)
 }
+
+func TestLabelPlan_HasDrift(t *testing.T) {
+	desired := []config.LabelDefinition{
+		{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
+		{Name: "approved", Color: "0e8a16", Description: "approved"},
+	}
+	wrongColor := []github.Label{
+		{Name: "lgtm", Color: "ffffff", Description: "Looks good to me"}, // UPDATE
+		{Name: "approved", Color: "0e8a16", Description: "approved"},     // OK
+	}
+	tests := []struct {
+		name    string
+		desired []config.LabelDefinition
+		current []github.Label
+		want    bool
+	}{
+		{
+			name:    "no drift — all present and identical",
+			desired: desired,
+			current: []github.Label{
+				{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
+				{Name: "approved", Color: "0e8a16", Description: "approved"},
+			},
+			want: false,
+		},
+		{
+			name:    "drift — label missing (CREATE)",
+			desired: desired,
+			current: []github.Label{
+				{Name: "lgtm", Color: "0e8a16", Description: "Looks good to me"},
+			},
+			want: true,
+		},
+		{
+			name:    "drift — color mismatch (UPDATE)",
+			desired: desired,
+			current: wrongColor,
+			want:    true,
+		},
+		{
+			name:    "extras alone are not drift",
+			desired: nil,
+			current: []github.Label{
+				{Name: "extra", Color: "000000", Description: ""},
+			},
+			want: false,
+		},
+		{
+			name:    "extras plus update IS drift",
+			desired: desired,
+			current: append(wrongColor, github.Label{Name: "extra", Color: "000000", Description: ""}),
+			want:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := config.DiffLabels(tt.desired, tt.current)
+			assert.Equal(t, tt.want, plan.HasDrift(),
+				"creates=%d updates=%d unchanged=%d extras=%d",
+				len(plan.Creates), len(plan.Updates), len(plan.Unchanged), len(plan.Extras))
+		})
+	}
+}
