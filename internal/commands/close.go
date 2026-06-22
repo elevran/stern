@@ -28,6 +28,8 @@ func newCloseHandler(verb string) HandlerFactory {
 	}
 }
 
+// Pre enforces that /close and /reopen require repo write access.
+// Works on both issues and PRs.
 func (h *CloseHandler) Pre(ctx context.Context, sc *event.Context, _ []string) error {
 	ok, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
 	if err != nil {
@@ -39,6 +41,7 @@ func (h *CloseHandler) Pre(ctx context.Context, sc *event.Context, _ []string) e
 	return nil
 }
 
+// Handle calls CloseIssue (or ReopenIssue for the reopen verb) on the issue or PR.
 func (h *CloseHandler) Handle(ctx context.Context, sc *event.Context, _ []string) error {
 	if h.verb == "reopen" {
 		return h.ghc.ReopenIssue(ctx, sc.Org, sc.Repo, sc.IssueNumber)
@@ -46,6 +49,7 @@ func (h *CloseHandler) Handle(ctx context.Context, sc *event.Context, _ []string
 	return h.ghc.CloseIssue(ctx, sc.Org, sc.Repo, sc.IssueNumber)
 }
 
+// Post is a no-op: close/reopen do not affect auto-merge eligibility.
 func (h *CloseHandler) Post(_ context.Context, _ *event.Context, _ []string, _ error) error {
 	return nil
 }

@@ -33,6 +33,8 @@ func (h *CCHandler) Pre(_ context.Context, sc *event.Context, args []string) err
 	return nil
 }
 
+// Handle parses the user list and applies RequestReviewers (cc) or
+// RemoveReviewers (uncc) per the handler's verb.
 func (h *CCHandler) Handle(ctx context.Context, sc *event.Context, args []string) error {
 	users, err := parseUsers(args, "")
 	if err != nil {
