@@ -507,3 +507,116 @@ func TestValidate_LabelCrossReferences(t *testing.T) {
 		}
 	})
 }
+
+func TestValidate_PluginRequiredLabels(t *testing.T) {
+	tests := []struct {
+		name             string
+		plugins          []string
+		labelDefinitions []config.LabelDefinition
+		sizeBuckets      []config.SizeBucket
+		wantMissing      []string // label names expected to be reported missing
+	}{
+		{
+			name:    "lgtm plugin requires lgtm label",
+			plugins: []string{"lgtm"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "approved", Color: "0e8a16"},
+			},
+			wantMissing: []string{`"lgtm"`},
+		},
+		{
+			name:    "approve plugin requires approved label",
+			plugins: []string{"approve"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+			},
+			wantMissing: []string{`"approved"`},
+		},
+		{
+			name:    "hold plugin requires do-not-merge/hold label",
+			plugins: []string{"hold"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+			},
+			wantMissing: []string{`"do-not-merge/hold"`},
+		},
+		{
+			name:    "wip plugin requires do-not-merge/wip label",
+			plugins: []string{"wip"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+			},
+			wantMissing: []string{`"do-not-merge/wip"`},
+		},
+		{
+			name:    "lifecycle plugin requires all three lifecycle/* labels",
+			plugins: []string{"lifecycle"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lifecycle/stale", Color: "cccccc"},
+			},
+			wantMissing: []string{`"lifecycle/rotten"`, `"lifecycle/frozen"`},
+		},
+		{
+			name:    "size plugin requires size/<bucket> for every configured bucket",
+			plugins: []string{"size"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "size/S", Color: "0e8a16"},
+			},
+			sizeBuckets: []config.SizeBucket{
+				{Name: "XS"}, {Name: "S"}, {Name: "M"},
+			},
+			wantMissing: []string{`"size/XS"`, `"size/M"`},
+		},
+		{
+			name:    "plugin with all required labels declared — no error",
+			plugins: []string{"lgtm", "approve"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+				{Name: "approved", Color: "0e8a16"},
+			},
+			wantMissing: nil,
+		},
+		{
+			name:    "empty label_definitions skips plugin-required check",
+			plugins: []string{"lgtm"},
+			// no label_definitions — validation is no-op for plugin labels
+			wantMissing: nil,
+		},
+		{
+			name:    "plugin with no statically-known required labels",
+			plugins: []string{"cherry-pick"},
+			labelDefinitions: []config.LabelDefinition{
+				{Name: "lgtm", Color: "0e8a16"},
+			},
+			wantMissing: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := validOptions()
+			opts.Plugins = tt.plugins
+			opts.LabelDefinitions = tt.labelDefinitions
+			opts.Size.Buckets = tt.sizeBuckets
+			issues := opts.Validate()
+			var found []string
+			for _, e := range issues {
+				if e.Level == "ERROR" && strings.HasPrefix(e.Field, "plugins[") {
+					found = append(found, e.Message)
+				}
+			}
+			for _, want := range tt.wantMissing {
+				matched := false
+				for _, m := range found {
+					if strings.Contains(m, want) {
+						matched = true
+						break
+					}
+				}
+				assert.True(t, matched, "expected plugin error containing %s, got: %v", want, found)
+			}
+			if len(tt.wantMissing) == 0 {
+				assert.Empty(t, found, "expected no plugin-required-label errors, got: %v", found)
+			}
+		})
+	}
+}
