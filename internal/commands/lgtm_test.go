@@ -19,6 +19,8 @@ func prContext(prAuthor string) (*event.Context, *github.MockClient) {
 		Number:  1,
 		Author:  prAuthor,
 		HeadSHA: "abc123",
+		BaseSHA: "base456",
+		BaseRef: "main",
 		NodeID:  "test-node-id",
 		Labels:  []string{},
 	}
@@ -50,6 +52,7 @@ func lgtmOpts(allowSelf bool) *config.Options {
 
 func TestLGTM_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
+	ghc.WriteAccess["elevran/stern/reviewer"] = true
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
@@ -60,6 +63,7 @@ func TestLGTM_AddsLabel(t *testing.T) {
 
 func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 	sc, ghc := prContext("author")
+	ghc.WriteAccess["elevran/stern/reviewer"] = true
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm cancel", reg, ghc, lgtmOpts(false))
@@ -67,6 +71,19 @@ func TestLGTM_Cancel_RemovesLabel(t *testing.T) {
 	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label to be removed on cancel")
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /lgtm cancel")
+}
+
+func TestLGTM_Cancel_RequiresWriteAccess(t *testing.T) {
+	sc, ghc := prContext("author")
+	ghc.WriteAccess["elevran/stern/reviewer"] = false
+	ghc.IssueLabels[1] = map[string]bool{"lgtm": true}
+
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
+	commands.Dispatch(context.Background(), sc, "/lgtm cancel", reg, ghc, lgtmOpts(false))
+
+	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm label NOT removed without write access")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
 func TestLGTM_SelfLGTMDenied(t *testing.T) {
@@ -83,6 +100,7 @@ func TestLGTM_SelfLGTMDenied(t *testing.T) {
 func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 	sc, ghc := prContext("reviewer")
 	sc.Author = "reviewer"
+	ghc.WriteAccess["elevran/stern/reviewer"] = true
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(true))
 
@@ -94,7 +112,7 @@ func TestLGTM_SelfLGTMAllowed(t *testing.T) {
 func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "outsider"
-	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - alice\n  - bob\n")
+	ghc.FileContent["OWNERS@base456"] = []byte("reviewers:\n  - alice\n  - bob\n")
 	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
@@ -105,18 +123,49 @@ func TestLGTM_NonReviewerDeniedByOwners(t *testing.T) {
 	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
-func TestLGTM_NoOwnersAllowsAnyCommenter(t *testing.T) {
+func TestLGTM_OWNERSAtHeadSHA_NotTrusted(t *testing.T) {
+	// An attacker can put an OWNERS file on their fork branch (HeadSHA). The
+	// auth check must read OWNERS at the base ref instead.
 	sc, ghc := prContext("author")
-	sc.Author = "anyone"
-	// No OWNERS files loaded in mock
+	sc.Author = "reviewer"
+	ghc.FileContent["OWNERS@abc123"] = []byte("reviewers:\n  - reviewer\n")
+	// No OWNERS at base ref → fallback to write-access check, which fails.
 	ghc.PRFiles[1] = []string{"README.md"}
 
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
 	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
 
-	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added when no OWNERS files present")
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added — OWNERS at attacker-controlled HeadSHA must be ignored")
 	require.NotEmpty(t, ghc.Reactions)
-	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /lgtm")
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
+}
+
+func TestLGTM_NoOwnersRequiresWriteAccess(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "anyone"
+	// No OWNERS files loaded and no write access: must fail closed.
+	ghc.PRFiles[1] = []string{"README.md"}
+
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
+	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
+
+	assert.False(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm NOT added when no OWNERS and no write access")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction when no OWNERS and no write access")
+}
+
+func TestLGTM_NoOwnersWriteAccessAllows(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "anyone"
+	ghc.WriteAccess["elevran/stern/anyone"] = true
+	ghc.PRFiles[1] = []string{"README.md"}
+
+	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}
+	commands.Dispatch(context.Background(), sc, "/lgtm", reg, ghc, lgtmOpts(false))
+
+	assert.True(t, ghc.IssueLabels[1]["lgtm"], "expected lgtm added for write-access user when no OWNERS files present")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction for write-access user with no OWNERS")
 }
 
 func TestLGTM_NotOnPR_Denied(t *testing.T) {
@@ -137,6 +186,7 @@ func TestLGTM_NotOnPR_Denied(t *testing.T) {
 
 func TestLGTM_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
+	ghc.WriteAccess["elevran/stern/reviewer"] = true
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
 	reg := commands.Registry{"lgtm": {Factory: commands.NewLGTMHandler}}

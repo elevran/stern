@@ -21,7 +21,7 @@ List of plugin names to enable. Available plugins:
 | Plugin | Commands | Notes |
 |--------|----------|-------|
 | `lgtm` | `/lgtm`, `/lgtm cancel` | LGTM label management |
-| `approve` | `/approve`, `/approve cancel` | Requires OWNERS files if `require_owner: true` |
+| `approve` | `/approve`, `/approve cancel` | Always requires an OWNERS-listed approver, or repo write access if no OWNERS covers the changed paths |
 | `hold` | `/hold`, `/hold cancel` | Blocks auto-merge |
 | `wip` | `/wip` | WIP detection from title and draft state |
 | `cherry-pick` | `/cherry-pick <sha>` | Backport commits to other branches |
@@ -57,7 +57,6 @@ lgtm:
 approve:
   allow_self_approval: false   # allow PR author to approve their own PR
   invalidate_on_push: false    # remove approved label on new commits
-  require_owner: true          # commenter must appear in an OWNERS file
 ```
 
 ## label_definitions

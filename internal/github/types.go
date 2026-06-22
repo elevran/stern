@@ -17,6 +17,8 @@ type PullRequest struct {
 	Labels         []string // label names only
 	NodeID         string
 	HeadSHA        string
+	BaseSHA        string // SHA of the base branch (trusted target ref for OWNERS lookups)
+	BaseRef        string // name of the base branch (e.g. "main"); for logging and fallback
 	Additions      int    // lines added in the PR diff
 	Deletions      int    // lines removed in the PR diff
 	Merged         bool   // true when the PR is merged (set by GetPullRequest on merged PRs)
@@ -70,9 +72,13 @@ func PullRequestFromGH(pr *gh.PullRequest) PullRequest {
 	for _, l := range pr.Labels {
 		labels = append(labels, l.GetName())
 	}
-	var headSHA, author string
+	var headSHA, baseSHA, baseRef, author string
 	if pr.Head != nil {
 		headSHA = pr.Head.GetSHA()
+	}
+	if pr.Base != nil {
+		baseSHA = pr.Base.GetSHA()
+		baseRef = pr.Base.GetRef()
 	}
 	if pr.User != nil {
 		author = pr.User.GetLogin()
@@ -85,6 +91,8 @@ func PullRequestFromGH(pr *gh.PullRequest) PullRequest {
 		Labels:         labels,
 		NodeID:         pr.GetNodeID(),
 		HeadSHA:        headSHA,
+		BaseSHA:        baseSHA,
+		BaseRef:        baseRef,
 		Additions:      pr.GetAdditions(),
 		Deletions:      pr.GetDeletions(),
 		Merged:         pr.GetMerged(),

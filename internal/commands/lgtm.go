@@ -15,6 +15,7 @@ type lgtmClient interface {
 	github.LabelsClient
 	github.PullRequestsClient
 	github.ContentClient
+	github.PermissionsClient
 }
 
 // LGTMHandler handles /lgtm and /lgtm cancel.
@@ -36,6 +37,14 @@ func (h *LGTMHandler) Pre(ctx context.Context, sc *event.Context, args []string)
 		return PermissionError("/lgtm may only be used on pull requests")
 	}
 	if isCancel(args) {
+		// Removing an existing LGTM requires write access (mirrors /hold cancel).
+		ok, err := h.ghc.HasWriteAccess(ctx, sc.Org, sc.Repo, sc.Author)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return PermissionError("%s does not have write access to remove an LGTM", sc.Author)
+		}
 		return nil
 	}
 	if !h.opts.LGTM.AllowSelfLGTM && sc.PR.Author == sc.Author {
@@ -56,7 +65,11 @@ func (h *LGTMHandler) Handle(ctx context.Context, sc *event.Context, args []stri
 }
 
 func (h *LGTMHandler) checkLGTMOwners(ctx context.Context, sc *event.Context) error {
-	return checkOwners(ctx, sc, h.ghc, func(r *owners.ResolvedOwners) bool {
+	files, err := h.ghc.ListPullRequestFiles(ctx, sc.Org, sc.Repo, sc.IssueNumber)
+	if err != nil {
+		return err
+	}
+	return checkOwners(ctx, sc, h.ghc, files, func(r *owners.ResolvedOwners) bool {
 		return r.IsReviewer(sc.Author) || r.IsApprover(sc.Author)
 	}, "%s is not in the OWNERS reviewers list for this PR's changed files")
 }

@@ -16,7 +16,6 @@ func approveOpts(allowSelf bool) *config.Options {
 		Approve: config.ApproveOptions{
 			AllowSelfApproval: allowSelf,
 			InvalidateOnPush:  false,
-			RequireOwner:      true,
 		},
 		Merge: config.MergeOptions{
 			Method:         "squash",
@@ -28,7 +27,7 @@ func approveOpts(allowSelf bool) *config.Options {
 func TestApprove_AddsLabel(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
-	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
+	ghc.FileContent["OWNERS@base456"] = []byte("approvers:\n  - approver\n")
 	ghc.PRFiles[1] = []string{"main.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -42,6 +41,7 @@ func TestApprove_AddsLabel(t *testing.T) {
 func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
+	ghc.WriteAccess["elevran/stern/approver"] = true
 	ghc.IssueLabels[1] = map[string]bool{"approved": true}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -50,6 +50,20 @@ func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved label removed on cancel")
 	require.NotEmpty(t, ghc.Reactions)
 	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction after successful /approve cancel")
+}
+
+func TestApprove_Cancel_RequiresWriteAccess(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "outsider"
+	ghc.WriteAccess["elevran/stern/outsider"] = false
+	ghc.IssueLabels[1] = map[string]bool{"approved": true}
+
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
+	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts(false))
+
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label NOT removed without write access")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
 func TestApprove_SelfApprovalDenied(t *testing.T) {
@@ -67,7 +81,7 @@ func TestApprove_SelfApprovalDenied(t *testing.T) {
 func TestApprove_NonApproverDenied(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "outsider"
-	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
+	ghc.FileContent["OWNERS@base456"] = []byte("approvers:\n  - alice\n")
 	ghc.PRFiles[1] = []string{"main.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -78,23 +92,38 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
 }
 
+func TestApprove_OWNERSAtHeadSHA_NotTrusted(t *testing.T) {
+	// An attacker can put an OWNERS file on their fork branch (HeadSHA). The
+	// auth check must read OWNERS at the base ref instead — listings at the
+	// head ref must be ignored.
+	sc, ghc := prContext("author")
+	sc.Author = "approver"
+	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - approver\n")
+	// No OWNERS at base ref → fallback to write-access check, which fails.
+	ghc.PRFiles[1] = []string{"main.go"}
+
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added — OWNERS at attacker-controlled HeadSHA must be ignored")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction")
+}
+
 func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
+	ghc.FileContent["OWNERS@base456"] = []byte("approvers:\n  - approver\n")
+	ghc.PRFiles[1] = []string{"main.go"}
 	// Pre-load the PR with both labels so Post's re-check via GetPullRequest
 	// sees an eligible PR and triggers EnableAutoMerge. The mock's AddLabels
 	// does not sync back into PullRequests[1].Labels, so we set the final
 	// state here.
 	ghc.PullRequests[1].Labels = []string{"lgtm", "approved"}
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true, "approved": true}
-	// No OWNERS files: any commenter can approve.
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	opts := &config.Options{
-		Approve: config.ApproveOptions{RequireOwner: false},
-		Merge:   config.MergeOptions{Method: "squash", BlockingLabels: []string{"do-not-merge/hold"}},
-	}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, opts)
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added")
 	assert.Equal(t, 1, ghc.EnableAutoMergeCallCount, "expected EnableAutoMergeCallCount=1 after both labels present")
@@ -105,6 +134,7 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "approver"
+	ghc.WriteAccess["elevran/stern/approver"] = true
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -122,8 +152,8 @@ func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 func TestApprove_PartialOwnership_Rejected(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "alice"
-	ghc.FileContent["dir-a/OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
-	ghc.FileContent["dir-b/OWNERS@abc123"] = []byte("approvers:\n  - bob\n")
+	ghc.FileContent["dir-a/OWNERS@base456"] = []byte("approvers:\n  - alice\n")
+	ghc.FileContent["dir-b/OWNERS@base456"] = []byte("approvers:\n  - bob\n")
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -141,7 +171,7 @@ func TestApprove_PartialOwnership_Rejected(t *testing.T) {
 func TestApprove_FullOwnership_Accepted(t *testing.T) {
 	sc, ghc := prContext("author")
 	sc.Author = "alice"
-	ghc.FileContent["OWNERS@abc123"] = []byte("approvers:\n  - alice\n")
+	ghc.FileContent["OWNERS@base456"] = []byte("approvers:\n  - alice\n")
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
@@ -152,35 +182,50 @@ func TestApprove_FullOwnership_Accepted(t *testing.T) {
 	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction")
 }
 
-// TestApprove_NoOwnersFiles_Accepted: open directory (no OWNERS anywhere)
-// preserves existing "anyone may approve" behaviour.
-func TestApprove_NoOwnersFiles_Accepted(t *testing.T) {
+// TestApprove_NoOwners_NoWriteAccess_Denied: no OWNERS covers the changed
+// paths and the commenter has no write access — must fail closed.
+func TestApprove_NoOwners_NoWriteAccess_Denied(t *testing.T) {
 	sc, ghc := prContext("author")
-	sc.Author = "outsider"
+	sc.Author = "anyone"
 	ghc.PRFiles[1] = []string{"some/path/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved added when no OWNERS files exist")
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when no OWNERS and no write access")
 	require.NotEmpty(t, ghc.Reactions)
-	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction")
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction when no OWNERS and no write access")
 }
 
-// TestApprove_EmptyHeadSHAFailsClosed verifies that /approve fails when the
-// PR's HeadSHA is unknown (cannot fetch OWNERS files at any ref). The old
-// `checkOwners` path silently bypassed the check in this case; the per-file
-// OWNERS check must fail-closed instead.
-func TestApprove_EmptyHeadSHAFailsClosed(t *testing.T) {
+// TestApprove_NoOwners_WriteAccess_Allowed: no OWNERS covers the changed
+// paths but the commenter has write access — must be allowed (maintainer
+// escape hatch).
+func TestApprove_NoOwners_WriteAccess_Allowed(t *testing.T) {
 	sc, ghc := prContext("author")
-	sc.Author = "outsider"
-	sc.PR.HeadSHA = "" // unknown head — would have silently bypassed the old check
+	sc.Author = "anyone"
+	ghc.WriteAccess["elevran/stern/anyone"] = true
+	ghc.PRFiles[1] = []string{"some/path/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
 	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
 
-	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when HeadSHA is unknown")
+	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved added for write-access user when no OWNERS")
 	require.NotEmpty(t, ghc.Reactions)
-	assert.Equal(t, "confused", ghc.Reactions[0].Content, "expected confused reaction (internal error, not -1)")
-	assert.NotEmpty(t, ghc.Comments, "expected an error comment explaining the failure")
+	assert.Equal(t, "+1", ghc.Reactions[0].Content, "expected +1 reaction for write-access user with no OWNERS")
+}
+
+// TestApprove_EmptyBaseSHAFailsClosed verifies that /approve fails when the
+// PR's BaseSHA is unknown. The early-return lives in the shared checkOwners
+// helper; checkApproveOwners delegates to it before running per-file checks.
+func TestApprove_EmptyBaseSHAFailsClosed(t *testing.T) {
+	sc, ghc := prContext("author")
+	sc.Author = "outsider"
+	sc.PR.BaseSHA = "" // unknown base — must fail closed
+
+	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+
+	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when BaseSHA is unknown")
+	require.NotEmpty(t, ghc.Reactions)
+	assert.Equal(t, "-1", ghc.Reactions[0].Content, "expected -1 reaction (permission error)")
 }
