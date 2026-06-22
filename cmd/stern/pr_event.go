@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/elevran/stern/internal/event"
+	"github.com/elevran/stern/internal/github"
 	"github.com/elevran/stern/internal/owners"
 	"github.com/elevran/stern/internal/pr"
 )
@@ -16,11 +17,21 @@ func newPREventCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "pr-event",
 		Short: "Process a pull_request_target event",
-		RunE:  runPREvent,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ghc, err := buildClient()
+			if err != nil {
+				return fmt.Errorf("building GitHub client: %w", err)
+			}
+			return runPREvent(ghc)
+		},
 	}
 }
 
-func runPREvent(_ *cobra.Command, _ []string) error {
+// runPREvent processes the pull_request_target event referenced by
+// GITHUB_EVENT_PATH. ghc is the GitHub client to use for any follow-up
+// calls; it is injected so tests can pass a mock client. Mirrors the
+// testable pattern established by runSlashCommand.
+func runPREvent(ghc github.Client) error {
 	// OWNERS cache: same wiring as runSlashCommand. The pr-event job
 	// triggers review_assignment which calls owners.LoadForPaths; without
 	// this, the actions/cache step in the workflow would warm a file
@@ -42,11 +53,6 @@ func runPREvent(_ *cobra.Command, _ []string) error {
 	evt, err := event.ParsePREvent()
 	if err != nil {
 		return fmt.Errorf("parsing event: %w", err)
-	}
-
-	ghc, err := buildClient()
-	if err != nil {
-		return fmt.Errorf("building GitHub client: %w", err)
 	}
 
 	org, repo, err := event.OrgRepoFromEnv()
