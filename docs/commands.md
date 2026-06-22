@@ -63,7 +63,9 @@ Usernames can be `@user`, bare `user`, or an email address.
 |---------|-------------|--------|
 | `/milestone <name>` | Repo write access required | Sets the issue/PR milestone |
 | `/retest` | Anyone | Re-runs the failed CI checks on the PR's head commit |
-| `/lifecycle` | n/a (scheduled) | Adds `lifecycle/stale`, `lifecycle/rotten`, and closes `lifecycle/rotten` issues per `lifecycle` config — runs on a schedule, not as a slash command |
+| `/lifecycle <stale\|rotten\|frozen\|active>` | Anyone (issues and PRs) | Manually sets or clears the matching `lifecycle/*` label. Each subcommand is mutually exclusive — setting one clears the other two; `active` clears all three. |
+
+A separate scheduled workflow (cron) calls `stern lifecycle --config …` to automatically promote issues from `lifecycle/stale` → `lifecycle/rotten` and (optionally) close `lifecycle/rotten` issues per `lifecycle` config. That subcommand is independent of the `/lifecycle` slash command above.
 
 ## Utility
 
