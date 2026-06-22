@@ -127,9 +127,7 @@ func TestRunSlashCommand_PRHydration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCommentEvent() error = %v", err)
 	}
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR == nil {
 		t.Fatal("expected sc.PR to be hydrated")
 	}
@@ -160,9 +158,7 @@ func TestRunSlashCommand_PRHydration_NotPullRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseCommentEvent() error = %v", err)
 	}
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR != nil {
 		t.Errorf("expected sc.PR to remain nil for a non-PR issue, got %+v", sc.PR)
 	}
@@ -191,9 +187,7 @@ func TestRunSlashCommand_PRHydration_GetPullRequestError(t *testing.T) {
 	}
 	// Hydration failures are logged but must not propagate; the comment
 	// still dispatches with sc.PR == nil.
-	if err := hydratePR(context.Background(), sc, evt, ghc); err != nil {
-		t.Fatalf("hydratePR() error = %v, want nil", err)
-	}
+	hydratePR(context.Background(), sc, evt, ghc)
 	if sc.PR != nil {
 		t.Errorf("expected sc.PR to be nil after GetPullRequest error, got %+v", sc.PR)
 	}

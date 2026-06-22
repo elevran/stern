@@ -165,7 +165,7 @@ func (h *EventHandler) invalidateApproveOnPush(ctx context.Context, org, repo st
 
 // HandlePREvent dispatches a pull_request_target event to the appropriate handlers.
 //
-// Deprecated: construct a EventHandler with NewEventHandler and call its
+// Deprecated: construct an EventHandler with NewEventHandler and call its
 // Handle method. This wrapper is retained for callers that have not migrated.
 func HandlePREvent(ctx context.Context, ghc github.Client, org, repo string, evt *event.PREvent, opts *config.Options) error {
 	return NewEventHandler(ghc, opts).Handle(ctx, org, repo, evt)
@@ -173,21 +173,21 @@ func HandlePREvent(ctx context.Context, ghc github.Client, org, repo string, evt
 
 // HandlePREventWIP applies or removes the WIP label based on PR title and draft state.
 //
-// Deprecated: call (*EventHandler).handleWIP via a EventHandler instead.
+// Deprecated: call (*EventHandler).handleWIP via an EventHandler instead.
 func HandlePREventWIP(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	return NewEventHandler(ghc, opts).handleWIP(ctx, org, repo, p)
 }
 
 // InvalidateLGTMOnPush removes the lgtm label when a PR receives new commits.
 //
-// Deprecated: call (*EventHandler).invalidateLGTMOnPush via a EventHandler instead.
+// Deprecated: call (*EventHandler).invalidateLGTMOnPush via an EventHandler instead.
 func InvalidateLGTMOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	return NewEventHandler(ghc, opts).invalidateLGTMOnPush(ctx, org, repo, p)
 }
 
 // InvalidateApproveOnPush removes the approved label when a PR receives new commits.
 //
-// Deprecated: call (*EventHandler).invalidateApproveOnPush via a EventHandler instead.
+// Deprecated: call (*EventHandler).invalidateApproveOnPush via an EventHandler instead.
 func InvalidateApproveOnPush(ctx context.Context, ghc prClient, org, repo string, p github.PullRequest, opts *config.Options) error {
 	return NewEventHandler(ghc, opts).invalidateApproveOnPush(ctx, org, repo, p)
 }

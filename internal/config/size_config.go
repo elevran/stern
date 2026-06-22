@@ -54,21 +54,21 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 		if b.Name == "" {
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
-				Field:   fieldPath("size.buckets", i, "name"),
+				Field:   fieldPath(i, "name"),
 				Message: "bucket name is empty",
 			})
 		}
 		if b.Min < 0 || b.Max < 0 {
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
-				Field:   fieldPath("size.buckets", i, ""),
+				Field:   fieldPath(i, ""),
 				Message: "bucket min/max must be non-negative",
 			})
 		}
 		if b.Min > 0 && b.Max > 0 && b.Min > b.Max {
 			issues = append(issues, ValidationIssue{
 				Level:   "ERROR",
-				Field:   fieldPath("size.buckets", i, ""),
+				Field:   fieldPath(i, ""),
 				Message: fmt.Sprintf("bucket %q: min (%d) > max (%d)", b.Name, b.Min, b.Max),
 			})
 		}
@@ -91,7 +91,7 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 			if a.Min <= bMax && b.Min <= aMax {
 				issues = append(issues, ValidationIssue{
 					Level: "ERROR",
-					Field: fieldPath("size.buckets", i, ""),
+					Field: fieldPath(i, ""),
 					Message: fmt.Sprintf(
 						"bucket %q (min=%d, max=%d) overlaps with bucket %q (min=%d, max=%d)",
 						a.Name, a.Min, a.Max, b.Name, b.Min, b.Max,
@@ -104,13 +104,9 @@ func (o *SizeOptions) validate(pluginEnabled bool) []ValidationIssue {
 }
 
 // fieldPath builds a "size.buckets[N].suffix" style path for validation messages.
-//
-// is kept generic so future label_definitions-style cross-references can reuse it.
-//
-//nolint:unparam // prefix is hardcoded to "size.buckets" today but the helper
-func fieldPath(prefix string, idx int, suffix string) string {
+func fieldPath(idx int, suffix string) string {
 	if suffix == "" {
-		return fmt.Sprintf("%s[%d]", prefix, idx)
+		return fmt.Sprintf("size.buckets[%d]", idx)
 	}
-	return fmt.Sprintf("%s[%d].%s", prefix, idx, suffix)
+	return fmt.Sprintf("size.buckets[%d].%s", idx, suffix)
 }

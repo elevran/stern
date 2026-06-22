@@ -11,14 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// default-strict path); kept as a parameter so future cases exercising
-// allow_self_approval: true can override without touching the helper.
-//
-//nolint:unparam // allowSelf is fixed to false across current callers (the
-func approveOpts(allowSelf bool) *config.Options {
+func approveOpts() *config.Options {
 	return &config.Options{
 		Approve: config.ApproveOptions{
-			AllowSelfApproval: allowSelf,
+			AllowSelfApproval: false,
 			InvalidateOnPush:  false,
 		},
 		Merge: config.MergeOptions{
@@ -35,7 +31,7 @@ func TestApprove_AddsLabel(t *testing.T) {
 	ghc.PRFiles[1] = []string{"main.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label to be added")
 	require.NotEmpty(t, ghc.Reactions)
@@ -49,7 +45,7 @@ func TestApprove_Cancel_RemovesLabel(t *testing.T) {
 	ghc.IssueLabels[1] = map[string]bool{"approved": true}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved label removed on cancel")
 	require.NotEmpty(t, ghc.Reactions)
@@ -63,7 +59,7 @@ func TestApprove_Cancel_RequiresWriteAccess(t *testing.T) {
 	ghc.IssueLabels[1] = map[string]bool{"approved": true}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve cancel", reg, ghc, approveOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label NOT removed without write access")
 	require.NotEmpty(t, ghc.Reactions)
@@ -75,7 +71,7 @@ func TestApprove_SelfApprovalDenied(t *testing.T) {
 	sc.Author = "approver" // PR author == commenter
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for self-approval")
 	require.NotEmpty(t, ghc.Reactions)
@@ -89,7 +85,7 @@ func TestApprove_NonApproverDenied(t *testing.T) {
 	ghc.PRFiles[1] = []string{"main.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for non-approver")
 	require.NotEmpty(t, ghc.Reactions)
@@ -107,7 +103,7 @@ func TestApprove_OWNERSAtHeadSHA_NotTrusted(t *testing.T) {
 	ghc.PRFiles[1] = []string{"main.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added — OWNERS at attacker-controlled HeadSHA must be ignored")
 	require.NotEmpty(t, ghc.Reactions)
@@ -127,7 +123,7 @@ func TestApprove_BothLGTMAndApproved_TriggersAutoMerge(t *testing.T) {
 	ghc.IssueLabels[1] = map[string]bool{"lgtm": true, "approved": true}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added")
 	assert.Equal(t, 1, ghc.EnableAutoMergeCallCount, "expected EnableAutoMergeCallCount=1 after both labels present")
@@ -142,7 +138,7 @@ func TestApprove_HandleError_SuppressesPost(t *testing.T) {
 	ghc.Errors["AddLabels"] = errors.New("boom")
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.Empty(t, ghc.AutoMergeEnabled, "expected Post NOT to run when Handle errors")
 	assert.Empty(t, ghc.AutoMergeDisabled, "expected Post NOT to run when Handle errors")
@@ -161,7 +157,7 @@ func TestApprove_PartialOwnership_Rejected(t *testing.T) {
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added for partial ownership")
 	require.NotEmpty(t, ghc.Reactions)
@@ -179,7 +175,7 @@ func TestApprove_FullOwnership_Accepted(t *testing.T) {
 	ghc.PRFiles[1] = []string{"dir-a/f.go", "dir-b/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved label added for full ownership")
 	require.NotEmpty(t, ghc.Reactions)
@@ -194,7 +190,7 @@ func TestApprove_NoOwners_NoWriteAccess_Denied(t *testing.T) {
 	ghc.PRFiles[1] = []string{"some/path/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when no OWNERS and no write access")
 	require.NotEmpty(t, ghc.Reactions)
@@ -211,7 +207,7 @@ func TestApprove_NoOwners_WriteAccess_Allowed(t *testing.T) {
 	ghc.PRFiles[1] = []string{"some/path/f.go"}
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.True(t, ghc.IssueLabels[1]["approved"], "expected approved added for write-access user when no OWNERS")
 	require.NotEmpty(t, ghc.Reactions)
@@ -227,7 +223,7 @@ func TestApprove_EmptyBaseSHAFailsClosed(t *testing.T) {
 	sc.PR.BaseSHA = "" // unknown base — must fail closed
 
 	reg := commands.Registry{"approve": {Factory: commands.NewApproveHandler}}
-	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts(false))
+	commands.Dispatch(context.Background(), sc, "/approve", reg, ghc, approveOpts())
 
 	assert.False(t, ghc.IssueLabels[1]["approved"], "expected approved NOT added when BaseSHA is unknown")
 	require.NotEmpty(t, ghc.Reactions)

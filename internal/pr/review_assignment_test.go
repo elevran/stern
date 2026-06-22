@@ -43,19 +43,15 @@ func reviewAssignmentOpts(enabled bool, count int, loadBalancing string) *config
 	}
 }
 
-// future tests can seed OWNERS at different refs (e.g. base vs head SHA
-// differentiation, or cache-invalidation scenarios) without touching the helper.
-//
-//nolint:unparam // sha is fixed across current callers; left as a parameter so
-func seedOwners(ghc *github.MockClient, sha string, content []byte) {
-	ghc.FileContent["OWNERS@"+sha] = content
+func seedOwners(ghc *github.MockClient, content []byte) {
+	ghc.FileContent["OWNERS@sha1"] = content
 }
 
 func TestHandlePREventReviewAssignment_DisabledNoOp(t *testing.T) {
 	quietLogger()
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n"))
 	p := github.PullRequest{Number: 1, Author: "bob", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(false, 1, "round-robin")))
@@ -79,7 +75,7 @@ func TestHandlePREventReviewAssignment_NoFilesNoOp(t *testing.T) {
 	quietLogger()
 	ghc := github.NewMockClient()
 	// No PRFiles seeded.
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n"))
 	p := github.PullRequest{Number: 1, Author: "bob", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 1, "round-robin")))
@@ -90,7 +86,7 @@ func TestHandlePREventReviewAssignment_SingleApproverAssigned(t *testing.T) {
 	quietLogger()
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n"))
 	p := github.PullRequest{Number: 1, Author: "bob", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 1, "round-robin")))
@@ -107,7 +103,7 @@ func TestHandlePREventReviewAssignment_MultipleApproversPicksFirstCountSorted(t 
 	quietLogger()
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - charlie\n  - alice\n  - bob\n"))
+	seedOwners(ghc, []byte("approvers:\n  - charlie\n  - alice\n  - bob\n"))
 	p := github.PullRequest{Number: 1, Author: "dave", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 2, "round-robin")))
@@ -122,7 +118,7 @@ func TestHandlePREventReviewAssignment_AuthorExcluded(t *testing.T) {
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
 	// alice and bob are approvers, but alice is the PR author.
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n  - bob\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n  - bob\n"))
 	p := github.PullRequest{Number: 1, Author: "Alice", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 2, "round-robin")))
@@ -136,7 +132,7 @@ func TestHandlePREventReviewAssignment_AllApproversAreAuthorNoOp(t *testing.T) {
 	quietLogger()
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n"))
 	p := github.PullRequest{Number: 1, Author: "alice", HeadSHA: "sha1"}
 
 	require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 1, "round-robin")))
@@ -148,7 +144,7 @@ func TestHandlePREventReviewAssignment_CountLargerThanCandidates(t *testing.T) {
 	quietLogger()
 	ghc := github.NewMockClient()
 	ghc.PRFiles[1] = []string{"foo.go"}
-	seedOwners(ghc, "sha1", []byte("approvers:\n  - alice\n  - bob\n"))
+	seedOwners(ghc, []byte("approvers:\n  - alice\n  - bob\n"))
 	p := github.PullRequest{Number: 1, Author: "carol", HeadSHA: "sha1"}
 
 	// Count=5 but only 2 candidates — should still assign the 2.
@@ -161,7 +157,7 @@ func TestHandlePREventReviewAssignment_LeastBusyLogsInfoAndFallsBack(t *testing.
 	out := captureLogger(func() {
 		ghc := github.NewMockClient()
 		ghc.PRFiles[1] = []string{"foo.go"}
-		seedOwners(ghc, "sha1", []byte("approvers:\n  - charlie\n  - alice\n  - bob\n"))
+		seedOwners(ghc, []byte("approvers:\n  - charlie\n  - alice\n  - bob\n"))
 		p := github.PullRequest{Number: 1, Author: "dave", HeadSHA: "sha1"}
 
 		require.NoError(t, pr.HandlePREventReviewAssignment(context.Background(), ghc, "o", "r", p, reviewAssignmentOpts(true, 2, "least-busy")))
