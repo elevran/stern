@@ -36,7 +36,7 @@ jobs:
       - name: Build stern
         run: go build -o stern ./cmd/stern/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: stern-binary
           path: stern
