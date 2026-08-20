@@ -5,7 +5,7 @@ go 1.25.11
 require (
 	github.com/fatih/color v1.19.0
 	github.com/google/go-github/v72 v72.0.0
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/oauth2 v0.36.0
