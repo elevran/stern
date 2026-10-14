@@ -1,0 +1,9 @@
+This file exists solely as the file change required to open the e2e test fixture PR.
+It has no functional effect on stern and should never be modified or deleted.
+
+The PR that introduced this file (#30) is a permanent e2e test fixture:
+  https://github.com/elevran/stern/pull/30
+
+Use that PR to test stern's PR-related slash commands and label management.
+Add/remove labels, post comments, and run slash commands against it freely.
+DO NOT MERGE this PR.
